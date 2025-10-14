@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Endpoint VentanillaServicio</title>
+</head>
+<body>
+    <h1>Test Endpoint /ventanillaservicio/Lista</h1>
+    <button onclick="testEndpoint()">Probar Endpoint</button>
+    <pre id="result"></pre>
+
+    <script>
+        async function testEndpoint() {
+            const API_ROOT = 'http://localhost:5079/api';
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                resultDiv.textContent = 'Cargando...';
+                
+                const response = await fetch(`${API_ROOT}/ventanillaservicio/Lista`);
+                
+                console.log('Status:', response.status);
+                console.log('Headers:', response.headers);
+                
+                const data = await response.json();
+                
+                console.log('Data:', data);
+                
+                resultDiv.textContent = JSON.stringify(data, null, 2);
+                
+                // Análisis
+                console.log('Es array?', Array.isArray(data));
+                console.log('Total items:', data?.length);
+                
+                if (Array.isArray(data) && data.length > 0) {
+                    console.log('Primer item:', data[0]);
+                    console.log('Campos disponibles:', Object.keys(data[0]));
+                    
+                    // Buscar ventanilla 1
+                    const ventanilla1 = data.filter(item => {
+                        const idVent = item.id_ventanilla || item.idVentanilla || 0;
+                        console.log('Item:', item.id, 'idVentanilla:', idVent);
+                        return idVent === 1;
+                    });
+                    
+                    console.log('Servicios para ventanilla 1:', ventanilla1);
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.textContent = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>
