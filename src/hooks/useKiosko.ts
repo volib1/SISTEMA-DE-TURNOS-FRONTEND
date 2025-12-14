@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { KioskoAPI, type KioskoServicioDTO, type TicketCreadoDTO } from '../services/kiosko.service';
 import { DashboardNotificationService } from '../services/dashboard-notification.service';
+import { API_ROOT } from '../services/http';
 
 // Mock data para desarrollo
 const MOCK_SERVICIOS: KioskoServicioDTO[] = [
@@ -25,6 +26,7 @@ export interface TicketGenerado extends TicketCreadoDTO {
   horaFormateada: string;
   posicionEnCola?: number;
   tiempoEstimadoEspera?: string;
+  ventanillaAsignada?: string | null;
 }
 
 interface KioskoState {
@@ -152,11 +154,11 @@ export const useKiosko = (): UseKioskoReturn => {
         console.log('[useKiosko] 🎭 Usando datos mock para generar ticket');
         // Simular creación de ticket
         await new Promise(resolve => setTimeout(resolve, 1500));
-        
+
         const fecha = new Date();
         const letra = servicio.nombre.charAt(0).toUpperCase();
         const numero = Math.floor(Math.random() * 999) + 1;
-        
+
         ticketCreado = {
           id: Date.now(),
           codigo: `${letra}${numero.toString().padStart(3, '0')}`,
@@ -165,40 +167,21 @@ export const useKiosko = (): UseKioskoReturn => {
         console.log('[useKiosko] ✅ Ticket mock creado:', ticketCreado);
       } else {
         try {
-          console.log('[useKiosko] 🌐 Usando API real para generar ticket');
+          console.log('[useKiosko] 🌐 Usando API real para generar ticket (asignación automática en backend)');
           console.log('[useKiosko] 📡 Servicio seleccionado ID:', state.servicioSeleccionado);
           console.log('[useKiosko] 📡 Datos del servicio:', servicio);
-          console.log('[useKiosko] 📡 URL que se llamará:', `http://localhost:5079/api/kiosko/ticket?idServicio=${state.servicioSeleccionado}`);
-          
-          // Test directo antes de la llamada principal
-          console.log('[useKiosko] 🧪 Probando endpoint directo...');
-          const testResponse = await fetch(`http://localhost:5079/api/kiosko/ticket?idServicio=${state.servicioSeleccionado}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            }
-          });
-          
-          console.log('[useKiosko] 📊 Response status:', testResponse.status);
-          console.log('[useKiosko] 📊 Response headers:', Object.fromEntries(testResponse.headers.entries()));
-          
-          if (!testResponse.ok) {
-            const errorText = await testResponse.text();
-            console.log('[useKiosko] ❌ Response error text:', errorText);
-            throw new Error(`HTTP ${testResponse.status}: ${errorText}`);
+
+          // ✅ El backend ahora asigna automáticamente a ventanilla disponible
+          ticketCreado = await KioskoAPI.crearTicket(state.servicioSeleccionado);
+
+          console.log('[useKiosko] ✅ Ticket creado:', ticketCreado);
+
+          if (ticketCreado.ventanillaAsignada) {
+            console.log('[useKiosko] 🎯 Asignado a ventanilla:', ticketCreado.ventanillaAsignada);
+          } else {
+            console.log('[useKiosko] ⚠️ Ticket creado pero SIN asignación (no hay ventanillas disponibles)');
           }
-          
-          const responseData = await testResponse.json();
-          console.log('[useKiosko] 📦 Response data:', responseData);
-          
-          ticketCreado = {
-            id: responseData.id || Date.now(),
-            codigo: responseData.codigo || 'ERROR',
-            fechaCreacion: responseData.fecha_creacion || new Date().toISOString()
-          };
-          
-          console.log('[useKiosko] ✅ Ticket real creado exitosamente:', ticketCreado);
-          
+
           // Verificar si realmente se guardó en BD
           setTimeout(async () => {
             try {
@@ -206,10 +189,13 @@ export const useKiosko = (): UseKioskoReturn => {
               const { TicketAPI } = await import('../services/ticket.service');
               const todosLosTickets = await TicketAPI.listar();
               console.log('[useKiosko] 📋 Tickets en BD después de crear:', todosLosTickets.total);
-              
+
               const ticketEncontrado = todosLosTickets.items.find((t: any) => t.codigo === ticketCreado.codigo);
               if (ticketEncontrado) {
                 console.log('[useKiosko] ✅ CONFIRMADO: Ticket guardado en BD:', ticketEncontrado);
+                if (ticketEncontrado.turno) {
+                  console.log('[useKiosko] 🎯 TURNO ASIGNADO:', ticketEncontrado.turno);
+                }
               } else {
                 console.log('[useKiosko] ❌ PROBLEMA: Ticket NO encontrado en BD');
                 console.log('[useKiosko] 📊 Últimos 5 tickets en BD:', todosLosTickets.items.slice(0, 5));
@@ -227,13 +213,13 @@ export const useKiosko = (): UseKioskoReturn => {
           console.error('  - Detail:', apiError?.detail);
           console.error('  - Stack:', apiError?.stack);
           console.error('  - Nombre:', apiError?.name);
-          
+
           // Si es un error de fetch, intentar obtener más información
           if (apiError instanceof Error) {
             console.error('  - Es instancia de Error:', true);
             console.error('  - Constructor:', apiError.constructor.name);
           }
-          
+
           // Crear mensaje detallado para el usuario
           const errorDetails = {
             endpoint: '/api/kiosko/ticket',
@@ -242,29 +228,29 @@ export const useKiosko = (): UseKioskoReturn => {
             error: apiError?.detail?.error || apiError?.message || 'Error desconocido',
             timestamp: new Date().toLocaleString('es-ES')
           };
-          
+
           console.error('[useKiosko] 📋 Detalles del error para usuario:', errorDetails);
-          
+
           // Fallback automático a datos mock cuando el backend falla
           const fecha = new Date();
           const letra = servicio.nombre.charAt(0).toUpperCase();
           const numero = Math.floor(Math.random() * 999) + 1;
-          
+
           ticketCreado = {
             id: Date.now(),
             codigo: `${letra}${numero.toString().padStart(3, '0')}`,
             fechaCreacion: fecha.toISOString()
           };
           console.log('[useKiosko] 🆘 Ticket fallback creado:', ticketCreado);
-          
+
           // Mostrar información detallada del error
           setState(prev => ({
             ...prev,
             error: `❌ ERROR DEL BACKEND - No se pudo guardar en BD
-            
+
 🔧 DETALLES TÉCNICOS:
 • Endpoint: ${errorDetails.endpoint}
-• Servicio ID: ${errorDetails.servicioId}  
+• Servicio ID: ${errorDetails.servicioId}
 • Status HTTP: ${errorDetails.status}
 • Error: ${errorDetails.error}
 • Hora: ${errorDetails.timestamp}
@@ -272,7 +258,7 @@ export const useKiosko = (): UseKioskoReturn => {
 ⚠️ El ticket se generó SOLO localmente.
 💾 Para guardar en BD, revisa el backend.`
           }));
-          
+
           // Limpiar el error después de un tiempo
           setTimeout(() => {
             setState(prev => ({ ...prev, error: null }));
@@ -619,7 +605,7 @@ ${report}
         loading: false,
         error: `❌ ERROR EN DIAGNÓSTICO: ${error?.message || 'Error desconocido'}
         
-🔧 Verifica que el backend esté ejecutándose en http://localhost:5079`
+🔧 Verifica que el backend esté ejecutándose en ${API_ROOT.replace('/api', '')}`
       }));
     }
   }, []);

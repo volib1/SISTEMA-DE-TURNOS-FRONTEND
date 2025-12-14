@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Search, Home, Users, Settings, Monitor, UserCheck, 
          ChevronDown, Menu, X, LogOut, Building, Ticket } from 'lucide-react';
 import { useAuth } from '../components/Auth/AuthContext';
-import './AdminLayout.css';
+import "../styles/AdminLayout.css";
+
 
 // Importar vistas
 import Dashboard from '../components/Dashboard/Dashboard';
@@ -61,7 +62,7 @@ const AdminLayout: React.FC = () => {
       items: [
         { id: 'kiosko', label: 'Kiosko', icon: <Monitor size={18} />, component: Kiosko },
         { id: 'tickets', label: 'Tickets', icon: <Ticket size={18} />, component: Tickets },
-        { id: 'pantalla', label: 'Pantalla de Espera', icon: <Monitor size={18} />, component: PantallaTurno },
+        { id: 'pantalla', label: 'Pantalla de Espera', icon: <Monitor size={18} />, component: () => <PantallaTurno disableVoice={true} /> },
         { id: 'multimedia', label: 'Gestión Multimedia', icon: <Settings size={18} />, component: AdminMultimedia }
       ]
     }
@@ -94,7 +95,7 @@ const AdminLayout: React.FC = () => {
   return (
     <div className={`admin-container ${sidebarCollapsed ? 'is-collapsed' : ''}`}>
       {/* Sidebar */}
-      <aside className={`admin-sidebar ${mobileMenuOpen ? 'open' : ''}`}>
+      <aside className={`admin-sidebar ${mobileMenuOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-head">
           <button className="brand" onClick={() => setCurrentView('dashboard')}>
             <div className="brand-icon">
@@ -183,6 +184,20 @@ const AdminLayout: React.FC = () => {
 
       {/* Main */}
       <main className="admin-main">
+        {/* Header móvil */}
+        <div className={`admin-header mobile ${mobileMenuOpen ? 'hidden' : ''}`}>
+          <button 
+            className="hamburger"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          >
+            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+          <div className="brand-mobile">
+            <Building size={20} />
+            <span>Panel de Admin</span>
+          </div>
+        </div>
+
         <div className="admin-content">
           <CurrentComponent />
         </div>

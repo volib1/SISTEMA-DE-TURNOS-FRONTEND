@@ -12,7 +12,7 @@ import {
   Home
 } from 'lucide-react';
 import { useKiosko } from '../../hooks/useKiosko';
-import './Kiosko.css';
+import '../../styles/Kiosko.css';
 
 const KioskoEnhanced: React.FC = () => {
   const {
@@ -29,12 +29,8 @@ const KioskoEnhanced: React.FC = () => {
     actualizarServicios,
     clearError,
     imprimirTicket,
-    probarConexion,
-    mostrarEstadosDisponibles,
-    testCompleteConnection
   } = useKiosko();
 
-  // Countdown para impresión automática
   const [countdown, setCountdown] = React.useState<number | null>(null);
 
   // Iniciar countdown cuando se muestra el ticket
@@ -57,31 +53,9 @@ const KioskoEnhanced: React.FC = () => {
     }
   }, [mostrarTicket, ticketGenerado]);
 
-  // Debug logging
-  React.useEffect(() => {
-    console.log('Kiosko State:', {
-      servicios: servicios.length,
-      servicioSeleccionado,
-      ticketGenerado: !!ticketGenerado,
-      loading,
-      generandoTicket,
-      error,
-      mostrarTicket
-    });
-  }, [servicios, servicioSeleccionado, ticketGenerado, loading, generandoTicket, error, mostrarTicket]);
-
   const handleGenerarTicketClick = async () => {
-    console.log('Botón generar ticket clickeado');
-    console.log('Servicio seleccionado antes de generar:', servicioSeleccionado);
-    console.log('¿Está generando ticket?:', generandoTicket);
-    
-    if (!servicioSeleccionado) {
-      console.error('No hay servicio seleccionado');
-      return;
-    }
-    
-    const resultado = await generarTicket();
-    console.log('Resultado de generarTicket:', resultado);
+    if (!servicioSeleccionado) return;
+    await generarTicket();
   };
 
   const fechaActual = new Date().toLocaleDateString('es-ES', {
@@ -100,8 +74,10 @@ const KioskoEnhanced: React.FC = () => {
     return (
       <div className="kiosko-container">
         <div className="kiosko-header">
-          <h1>ALCALDÍA MUNICIPAL</h1>
-          <p>Sistema de Gestión de Turnos</p>
+          <div className="header-content">
+            <h1>ALCALDÍA MUNICIPAL DE SONSONATE OESTE</h1>
+            <p className="header-subtitle">Sistema de Gestión de Turnos</p>
+          </div>
         </div>
 
         <div className="ticket-success-container">
@@ -190,7 +166,7 @@ const KioskoEnhanced: React.FC = () => {
     <div className="kiosko-container">
       <div className="kiosko-header">
         <div className="header-content">
-          <h1>ALCALDÍA MUNICIPAL</h1>
+          <h1>ALCALDÍA MUNICIPAL DE SONSONATE OESTE</h1>
           <p className="header-subtitle">Sistema de Gestión de Turnos</p>
           <div className="datetime-info">
             <Calendar size={18} />
@@ -202,14 +178,7 @@ const KioskoEnhanced: React.FC = () => {
             >
               <RefreshCw size={16} />
             </button>
-            <button 
-              onClick={probarConexion} 
-              className={`refresh-btn ${loading ? 'loading' : ''}`}
-              title="Diagnóstico completo del backend"
-              style={{ marginLeft: '8px', fontSize: '12px', padding: '4px 8px' }}
-            >
-              � Diagnóstico
-            </button>
+            
           </div>
         </div>
       </div>
@@ -221,8 +190,6 @@ const KioskoEnhanced: React.FC = () => {
           <button onClick={clearError} className="error-close">×</button>
         </div>
       )}
-
-
 
       <div className="kiosko-content">
         <div className="instructions">
@@ -252,9 +219,7 @@ const KioskoEnhanced: React.FC = () => {
                 <button
                   key={servicio.id}
                   onClick={() => seleccionarServicio(servicio.id)}
-                  className={`service-card ${
-                    servicioSeleccionado === servicio.id ? 'selected' : ''
-                  }`}
+                  className={`service-card ${servicioSeleccionado === servicio.id ? 'selected' : ''}`}
                   disabled={generandoTicket}
                 >
                   <div className="service-icon">
@@ -262,9 +227,7 @@ const KioskoEnhanced: React.FC = () => {
                   </div>
                   <div className="service-info">
                     <h3>{servicio.nombre}</h3>
-                    {servicio.descripcion && (
-                      <p>{servicio.descripcion}</p>
-                    )}
+                    {servicio.descripcion && <p>{servicio.descripcion}</p>}
                   </div>
                   {servicioSeleccionado === servicio.id && (
                     <div className="selection-indicator">
@@ -281,9 +244,7 @@ const KioskoEnhanced: React.FC = () => {
                   <div className="selected-indicator">
                     <CheckCircle size={16} />
                     <span>
-                      Servicio seleccionado: <strong>
-                        {servicios.find(s => s.id === servicioSeleccionado)?.nombre}
-                      </strong>
+                      Servicio seleccionado: <strong>{servicios.find(s => s.id === servicioSeleccionado)?.nombre}</strong>
                     </span>
                   </div>
                 </div>
@@ -311,23 +272,6 @@ const KioskoEnhanced: React.FC = () => {
                 <p className="action-hint">
                   Toque "OBTENER TURNO" para generar su ticket
                 </p>
-              )}
-
-              {/* Debug info - se puede quitar en producción */}
-              {import.meta.env.DEV && (
-                <div style={{
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  padding: '10px',
-                  borderRadius: '4px',
-                  fontSize: '0.8rem',
-                  marginTop: '1rem'
-                }}>
-                  <p>Debug Info:</p>
-                  <p>Servicio seleccionado: {servicioSeleccionado || 'Ninguno'}</p>
-                  <p>Generando ticket: {generandoTicket ? 'Sí' : 'No'}</p>
-                  <p>Servicios cargados: {servicios.length}</p>
-                  {error && <p style={{color: '#ff6b6b'}}>Error: {error}</p>}
-                </div>
               )}
             </div>
           </>

@@ -5,7 +5,11 @@ import { MediaAPI } from '../../services/media.service';
 import type { TicketLlamadoDto } from '../../services/pantalla-feed.service';
 import type { MediaFileDTO, MediaConfigDTO } from '../../services/media.service';
 
-export default function PantallaEspera() {
+interface PantallaEsperaProps {
+  disableVoice?: boolean;
+}
+
+export default function PantallaEspera({ disableVoice = false }: PantallaEsperaProps = {}) {
   const [llamados, setLlamados] = useState<TicketLlamadoDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +26,7 @@ export default function PantallaEspera() {
   const audioRef = useRef<HTMLAudioElement>(null);
 
   // Estados para síntesis de voz
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [voiceEnabled, setVoiceEnabled] = useState(!disableVoice);
   const lastAnnouncedRef = useRef<Set<string>>(new Set());
 
   /**
@@ -45,13 +49,13 @@ export default function PantallaEspera() {
 
     // Crear clave única para este anuncio
     const key = `${llamado.ticket}-${llamado.ventanilla}`;
-    
+
     // No anunciar si ya se anunció
     if (lastAnnouncedRef.current.has(key)) {
       console.log('[PantallaEspera] ⏭️ Turno ya anunciado, omitiendo:', key);
       return;
     }
-    
+
     // Marcar como anunciado
     lastAnnouncedRef.current.add(key);
     console.log('[PantallaEspera] ✅ Turno marcado como anunciado:', key);
@@ -65,7 +69,7 @@ export default function PantallaEspera() {
     try {
       // Crear el mensaje
       const mensaje = `Turno ${llamado.ticket}, ventanilla ${llamado.ventanilla}`;
-      
+
       console.log('[PantallaEspera] 🔊 Mensaje a anunciar:', mensaje);
 
       // Cancelar cualquier anuncio previo
@@ -75,7 +79,7 @@ export default function PantallaEspera() {
       setTimeout(() => {
         // Crear la síntesis de voz
         const utterance = new SpeechSynthesisUtterance(mensaje);
-        
+
         // Configuración optimizada para Brave/Chrome
         utterance.lang = 'es-ES';
         utterance.rate = 0.9;
@@ -85,13 +89,13 @@ export default function PantallaEspera() {
         // Intentar seleccionar una voz en español
         const voices = window.speechSynthesis.getVoices();
         console.log('[PantallaEspera] 🎤 Voces disponibles:', voices.length);
-        
-        const spanishVoice = voices.find(voice => 
-          voice.lang.startsWith('es') || 
-          voice.lang === 'es-ES' || 
+
+        const spanishVoice = voices.find(voice =>
+          voice.lang.startsWith('es') ||
+          voice.lang === 'es-ES' ||
           voice.lang === 'es-MX'
         );
-        
+
         if (spanishVoice) {
           utterance.voice = spanishVoice;
           console.log('[PantallaEspera] ✅ Voz en español seleccionada:', spanishVoice.name);
@@ -127,28 +131,28 @@ export default function PantallaEspera() {
     setError(null);
     try {
       const data = await PantallaFeedAPI.ultimosLlamados();
-      
+
       console.log('[PantallaEspera] 📊 Turnos actuales:', data.length);
       console.log('[PantallaEspera] 📊 Turnos anteriores:', llamados.length);
-      
+
       // Detectar turnos nuevos (que no estaban en la lista anterior)
       const nuevosLlamados = data.filter(nuevoLlamado => {
         const existeAntes = llamados.some(
-          existente => existente.ticket === nuevoLlamado.ticket && 
+          existente => existente.ticket === nuevoLlamado.ticket &&
                        existente.ventanilla === nuevoLlamado.ventanilla
         );
-        
+
         if (!existeAntes) {
           console.log('[PantallaEspera] 🆕 Turno NUEVO detectado:', nuevoLlamado.ticket);
           return true;
         }
-        
+
         return false;
       });
 
       // Anunciar cada turno nuevo
       if (nuevosLlamados.length > 0) {
-        console.log('[PantallaEspera] � Anunciando', nuevosLlamados.length, 'turno(s) nuevo(s)');
+        console.log('[PantallaEspera] 📢 Anunciando', nuevosLlamados.length, 'turno(s) nuevo(s)');
         nuevosLlamados.forEach(llamado => {
           anunciarTurno(llamado);
         });
@@ -210,7 +214,7 @@ export default function PantallaEspera() {
 
       // Las voces se cargan de forma asíncrona en algunos navegadores
       loadVoices();
-      
+
       // Brave/Chrome dispara este evento cuando las voces están listas
       if (window.speechSynthesis.onvoiceschanged !== undefined) {
         window.speechSynthesis.onvoiceschanged = loadVoices;
@@ -222,20 +226,20 @@ export default function PantallaEspera() {
     // Cargar datos iniciales
     cargarDatos();
     cargarMediaArchivos();
-    
+
     // Auto-refresh cada 10 segundos para pantalla en tiempo real
     const interval = setInterval(cargarDatos, 10000);
-    
+
     // Escuchar cambios de conectividad
     const handleOnline = () => {
       setIsOnline(true);
       cargarDatos();
     };
     const handleOffline = () => setIsOnline(false);
-    
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    
+
     return () => {
       clearInterval(interval);
       window.removeEventListener('online', handleOnline);
@@ -249,9 +253,9 @@ export default function PantallaEspera() {
       if (mediaIntervalRef.current) {
         clearInterval(mediaIntervalRef.current);
       }
-      
+
       mediaIntervalRef.current = setInterval(nextMedia, displayInterval);
-      
+
       return () => {
         if (mediaIntervalRef.current) {
           clearInterval(mediaIntervalRef.current);
@@ -261,8 +265,8 @@ export default function PantallaEspera() {
   }, [mediaFiles.length, isPlaying, displayInterval]);
 
   const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('es-ES', { 
-      hour: '2-digit', 
+    return date.toLocaleTimeString('es-ES', {
+      hour: '2-digit',
       minute: '2-digit',
       second: '2-digit'
     });
@@ -279,10 +283,10 @@ export default function PantallaEspera() {
   };
 
   return (
-    <div style={{ 
-      minHeight: '100vh', 
+    <div style={{
+      minHeight: '100vh',
       background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
-      padding: '24px' 
+      padding: '24px'
     }}>
       {/* Status Bar */}
       <div style={{
@@ -323,16 +327,16 @@ export default function PantallaEspera() {
             </div>
           )}
         </div>
-        
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '14px', color: 'var(--muted)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Clock size={14} />
             Última actualización: {formatTime(lastUpdate)}
           </div>
-          
+
           {/* Botón de voz */}
-          <button 
-            onClick={() => setVoiceEnabled(!voiceEnabled)} 
+          <button
+            onClick={() => setVoiceEnabled(!voiceEnabled)}
             style={{
               background: 'none',
               border: 'none',
@@ -354,7 +358,7 @@ export default function PantallaEspera() {
           </button>
 
           {/* Botón de prueba de voz */}
-          <button 
+          <button
             onClick={() => {
               const prueba: TicketLlamadoDto = {
                 ticket: 'TEST01',
@@ -365,7 +369,7 @@ export default function PantallaEspera() {
               // Limpiar el registro para permitir el anuncio de prueba
               lastAnnouncedRef.current.clear();
               anunciarTurno(prueba);
-            }} 
+            }}
             style={{
               background: 'none',
               border: '1px solid var(--primary)',
@@ -392,8 +396,8 @@ export default function PantallaEspera() {
             🎤 Probar Voz
           </button>
 
-          <button 
-            onClick={cargarDatos} 
+          <button
+            onClick={cargarDatos}
             disabled={loading}
             style={{
               background: 'none',
@@ -411,8 +415,8 @@ export default function PantallaEspera() {
             onMouseEnter={(e) => e.currentTarget.style.background = 'var(--primary-50)'}
             onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
           >
-            <RefreshCw size={14} style={{ 
-              animation: loading ? 'spin 1s linear infinite' : 'none' 
+            <RefreshCw size={14} style={{
+              animation: loading ? 'spin 1s linear infinite' : 'none'
             }} />
             {loading ? 'Actualizando...' : 'Actualizar'}
           </button>
@@ -421,55 +425,55 @@ export default function PantallaEspera() {
 
       {/* Header Principal */}
       <div style={{
-        background: 'linear-gradient(135deg, var(--primary), var(--accent))',
+        background: '#0A2342',
         color: 'white',
-        padding: '40px',
-        borderRadius: '20px',
-        textAlign: 'center',
+        padding: '32px 40px',
+        borderRadius: '16px',
         marginBottom: '32px',
-        boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
-        position: 'relative',
-        overflow: 'hidden'
+        boxShadow: '0 8px 25px rgba(10, 35, 66, 0.3)',
+        border: '2px solid #E9C46A',
+        position: 'relative'
       }}>
         <div style={{
-          position: 'absolute',
-          top: '-50%',
-          right: '-50%',
-          width: '200%',
-          height: '200%',
-          background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%)',
-          pointerEvents: 'none'
-        }}></div>
-        
-        <div style={{ position: 'relative', zIndex: 1 }}>
-          <div style={{ 
-            fontSize: '32px', 
-            fontWeight: 700, 
-            marginBottom: '12px',
-            textShadow: '0 2px 4px rgba(0,0,0,0.1)'
-          }}>
-            ALCALDÍA MUNICIPAL DE SONSONATE OESTE
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '20px'
+        }}>
+          <div>
+            <h1 style={{
+              fontSize: '28px',
+              fontWeight: 700,
+              margin: 0,
+              color: '#E9C46A',
+              fontFamily: "'Times New Roman', Georgia, serif"
+            }}>
+              ALCALDÍA MUNICIPAL DE SONSONATE OESTE
+            </h1>
+            <p style={{
+              fontSize: '16px',
+              margin: '8px 0 0 0',
+              color: '#E9C46A',
+              opacity: 0.85,
+              fontFamily: "'Times New Roman', Georgia, serif"
+            }}>
+              Sistema de Gestión de Turnos
+            </p>
           </div>
-          <div style={{ 
-            fontSize: '18px', 
-            opacity: 0.95, 
-            marginBottom: '20px',
-            textShadow: '0 1px 2px rgba(0,0,0,0.1)'
+
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            fontSize: '14px',
+            color: 'rgba(255, 255, 255, 0.9)',
+            padding: '10px 20px',
+            borderRadius: '25px',
+            border: '1px solid rgba(233, 196, 106, 0.4)',
+            background: 'rgba(233, 196, 106, 0.1)'
           }}>
-            Sistema de Gestión de Turnos
-          </div>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            gap: '12px', 
-            fontSize: '16px',
-            background: 'rgba(255,255,255,0.2)',
-            padding: '12px 24px',
-            borderRadius: '50px',
-            backdropFilter: 'blur(10px)'
-          }}>
-            <Calendar size={18} />
+            <Calendar size={16} color="#E9C46A" />
             {formatDate()}
           </div>
         </div>
@@ -489,9 +493,9 @@ export default function PantallaEspera() {
           boxShadow: '0 4px 15px rgba(0,0,0,0.08)',
           border: '1px solid rgba(0,0,0,0.05)'
         }}>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
             gap: '12px',
             marginBottom: '16px'
           }}>
@@ -516,8 +520,8 @@ export default function PantallaEspera() {
               </div>
             </div>
           </div>
-          <div style={{ 
-            fontSize: '12px', 
+          <div style={{
+            fontSize: '12px',
             color: 'var(--success)',
             background: 'var(--success-50)',
             padding: '6px 12px',
@@ -536,9 +540,9 @@ export default function PantallaEspera() {
           boxShadow: '0 4px 15px rgba(0,0,0,0.08)',
           border: '1px solid rgba(0,0,0,0.05)'
         }}>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
             gap: '12px',
             marginBottom: '16px'
           }}>
@@ -563,8 +567,8 @@ export default function PantallaEspera() {
               </div>
             </div>
           </div>
-          <div style={{ 
-            fontSize: '12px', 
+          <div style={{
+            fontSize: '12px',
             color: 'var(--warning)',
             background: 'var(--warning-50)',
             padding: '6px 12px',
@@ -583,9 +587,9 @@ export default function PantallaEspera() {
           boxShadow: '0 4px 15px rgba(0,0,0,0.08)',
           border: '1px solid rgba(0,0,0,0.05)'
         }}>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
             gap: '12px',
             marginBottom: '16px'
           }}>
@@ -610,8 +614,8 @@ export default function PantallaEspera() {
               </div>
             </div>
           </div>
-          <div style={{ 
-            fontSize: '12px', 
+          <div style={{
+            fontSize: '12px',
             color: 'var(--success)',
             background: 'var(--success-50)',
             padding: '6px 12px',
@@ -631,7 +635,7 @@ export default function PantallaEspera() {
         gap: '24px',
         alignItems: 'start'
       }}>
-        
+
         {/* Sección Multimedia */}
         {mediaFiles.length > 0 && (
           <div style={{
@@ -656,7 +660,7 @@ export default function PantallaEspera() {
                   Contenido Multimedia
                 </h3>
               </div>
-              
+
               {/* Controles multimedia */}
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
@@ -729,7 +733,7 @@ export default function PantallaEspera() {
                       }}
                     />
                   )}
-                  
+
                   {currentMedia.type === 'video' && (
                     <video
                       ref={videoRef}
@@ -744,7 +748,7 @@ export default function PantallaEspera() {
                       }}
                     />
                   )}
-                  
+
                   {currentMedia.type === 'audio' && (
                     <div style={{
                       display: 'flex',
@@ -775,7 +779,7 @@ export default function PantallaEspera() {
                       />
                     </div>
                   )}
-                  
+
                   {currentMedia.type === 'text' && (
                     <div style={{
                       color: 'white',
@@ -836,8 +840,8 @@ export default function PantallaEspera() {
 
         <div style={{ padding: '32px' }}>
           {loading && llamados.length === 0 ? (
-            <div style={{ 
-              textAlign: 'center', 
+            <div style={{
+              textAlign: 'center',
               padding: '60px',
               color: 'var(--muted)'
             }}>
@@ -862,8 +866,8 @@ export default function PantallaEspera() {
               </div>
             </div>
           ) : llamados.length === 0 ? (
-            <div style={{ 
-              textAlign: 'center', 
+            <div style={{
+              textAlign: 'center',
               padding: '60px',
               background: 'linear-gradient(135deg, var(--success-50), var(--primary-50))',
               borderRadius: '16px',
@@ -899,8 +903,8 @@ export default function PantallaEspera() {
               gap: '24px'
             }}>
               {llamados.map((ticket, idx) => (
-                <div 
-                  key={idx} 
+                <div
+                  key={idx}
                   style={{
                     background: 'linear-gradient(135deg, var(--primary-50), var(--accent-50))',
                     border: '2px solid var(--primary)',
@@ -924,7 +928,7 @@ export default function PantallaEspera() {
                     background: 'var(--success)',
                     animation: 'pulse 2s infinite'
                   }}></div>
-                  
+
                   <div style={{
                     fontSize: '48px',
                     fontWeight: 700,
@@ -934,7 +938,7 @@ export default function PantallaEspera() {
                   }}>
                     {ticket.ticket}
                   </div>
-                  
+
                   <div style={{
                     background: 'white',
                     padding: '16px 24px',
@@ -942,9 +946,9 @@ export default function PantallaEspera() {
                     marginBottom: '20px',
                     boxShadow: '0 4px 15px rgba(0,0,0,0.1)'
                   }}>
-                    <div style={{ 
-                      fontSize: '14px', 
-                      color: 'var(--muted)', 
+                    <div style={{
+                      fontSize: '14px',
+                      color: 'var(--muted)',
                       fontWeight: 600,
                       textTransform: 'uppercase',
                       letterSpacing: '0.05em',
@@ -952,18 +956,18 @@ export default function PantallaEspera() {
                     }}>
                       Diríjase a
                     </div>
-                    <div style={{ 
-                      fontSize: '20px', 
-                      fontWeight: 700, 
-                      color: 'var(--primary)' 
+                    <div style={{
+                      fontSize: '20px',
+                      fontWeight: 700,
+                      color: 'var(--primary)'
                     }}>
                       {ticket.ventanilla}
                     </div>
                   </div>
-                  
+
                   {ticket.servicio && (
-                    <div style={{ 
-                      fontSize: '14px', 
+                    <div style={{
+                      fontSize: '14px',
                       color: 'var(--text)',
                       background: 'rgba(255,255,255,0.8)',
                       padding: '8px 16px',
@@ -973,10 +977,10 @@ export default function PantallaEspera() {
                       {ticket.servicio}
                     </div>
                   )}
-                  
+
                   {ticket.hora && (
-                    <div style={{ 
-                      fontSize: '12px', 
+                    <div style={{
+                      fontSize: '12px',
                       color: 'var(--muted)',
                       marginTop: '8px',
                       display: 'flex',
@@ -1002,12 +1006,12 @@ export default function PantallaEspera() {
             0%, 100% { opacity: 1; transform: scale(1); }
             50% { opacity: 0.7; transform: scale(1.1); }
           }
-          
+
           @keyframes spin {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
           }
-          
+
           @keyframes fadeInUp {
             from {
               opacity: 0;

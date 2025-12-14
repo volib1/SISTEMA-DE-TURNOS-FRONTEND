@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { LogIn, User, Lock, AlertCircle, Monitor } from 'lucide-react';
-import './LoginOperador.css';
+import '../../styles/Login.css';
 import { OperadorAuthAPI } from '../../services/operador-auth.service';
+import logoImg from '../../assets/logo.webp';
 
 interface LoginOperadorProps {
   onLoginSuccess: (empleado: EmpleadoOperador) => void;
@@ -68,85 +68,72 @@ export default function LoginOperador({ onLoginSuccess }: LoginOperadorProps) {
   };
 
   return (
-    <div className="login-operador-container">
-      <div className="login-operador-card">
-        {/* Header */}
+    <div className="login-container">
+      <div className="login-card">
         <div className="login-header">
-          <div className="login-icon">
-            <Monitor size={48} />
-          </div>
-          <h1>ALCALDÍA MUNICIPAL</h1>
-          <p className="login-subtitle">Sistema de Gestión de Turnos</p>
-          <div className="login-divider"></div>
-          <h2>Acceso de Operador</h2>
+          <img
+            src={logoImg}
+            alt="Gobierno Municipal - Ciudad Portuaria"
+            className="login-logo"
+          />
+          <h2>PANEL DEL OPERADOR</h2>
+          <p>Inicia sesión para atender turnos</p>
         </div>
+        
+        <form className="login-form" onSubmit={handleSubmit}>
+          <div className="login-form-group">
+            <label htmlFor="correo">Correo Electrónico</label>
+            <input
+              type="email"
+              id="correo"
+              name="correo"
+              value={correo}
+              onChange={(e) => setCorreo(e.target.value)}
+              placeholder="ejemplo@correo.com"
+              disabled={loading}
+              required
+            />
+          </div>
 
-        {/* Formulario */}
-        <form onSubmit={handleSubmit} className="login-form">
+          <div className="login-form-group">
+            <label htmlFor="password">Contraseña</label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Ingresa tu contraseña"
+              disabled={loading}
+              required
+            />
+          </div>
+
           {error && (
-            <div className="login-error">
-              <AlertCircle size={18} />
-              <span>{error}</span>
+            <div className="error-message">
+              <span className="error-icon">⚠️</span>
+              {error}
             </div>
           )}
 
-          <div className="form-group">
-            <label htmlFor="correo">
-              <User size={18} />
-              Correo Electrónico
-            </label>
-            <input
-              id="correo"
-              type="email"
-              value={correo}
-              onChange={(e) => setCorreo(e.target.value)}
-              placeholder="ejemplo@alcaldia.gob.sv"
-              disabled={loading}
-              autoComplete="username"
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="password">
-              <Lock size={18} />
-              Contraseña
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              disabled={loading}
-              autoComplete="current-password"
-            />
-          </div>
-
-          <button 
-            type="submit" 
-            className="btn-login"
+          <button
+            type="submit"
+            className="login-button"
             disabled={loading}
           >
-            <LogIn size={20} />
-            <span>{loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}</span>
+            {loading ? (
+              <>
+                <span className="spinner"></span>
+                Iniciando sesión...
+              </>
+            ) : (
+              'Iniciar Sesión'
+            )}
           </button>
         </form>
 
-        {/* Footer */}
         <div className="login-footer">
-          <p>¿Problemas para acceder?</p>
-          <p className="footer-help">Contacte al administrador del sistema</p>
-        </div>
-      </div>
-
-      {/* Información adicional */}
-      <div className="login-info">
-        <div className="info-item">
-          <Monitor size={24} />
-          <div>
-            <h3>Acceso Restringido</h3>
-            <p>Solo para personal autorizado</p>
-          </div>
+          <p>¿Problemas para acceder? Contacta al administrador</p>
         </div>
       </div>
     </div>

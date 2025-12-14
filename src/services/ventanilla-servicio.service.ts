@@ -2,7 +2,9 @@ import { API_ROOT, handleJSON } from "./http";
 
 export type VentanillaServicioDTO = {
   id: number;
+  idVentanilla: number;
   ventanilla: string;
+  idServicio: number;
   servicio: string;
   activo: boolean;
 };
@@ -14,9 +16,12 @@ const API = `${API_ROOT}/ventanillaservicio`;
 function nVS(d: any): VentanillaServicioDTO {
   return {
     id: Number(d.id ?? 0),
-    ventanilla: String(d.Ventanilla ?? ""),
-    servicio: String(d.Servicio ?? ""),
-    activo: Boolean(d.activo ?? false),
+    // Manejar PascalCase (backend) y camelCase
+    idVentanilla: Number(d.idVentanilla ?? d.IdVentanilla ?? d.id_ventanilla ?? 0),
+    ventanilla: String(d.ventanilla ?? d.Ventanilla ?? ""),
+    idServicio: Number(d.idServicio ?? d.IdServicio ?? d.id_servicio ?? 0),
+    servicio: String(d.servicio ?? d.Servicio ?? ""),
+    activo: Boolean(d.activo ?? d.Activo ?? false),
   };
 }
 

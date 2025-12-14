@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Phone, CheckCircle, Clock, User, Monitor, AlertCircle, RefreshCw, LogOut, Home } from 'lucide-react';
-import './VentanillaOperador.css';
+import '../../styles/VentanillaOperador.css';
 import type { EmpleadoOperador } from './LoginOperador';
 import { useOperador } from '../../hooks/useOperador';
 
@@ -11,6 +11,7 @@ interface VentanillaOperadorProps {
 
 export default function VentanillaOperador({ empleado, onLogout }: VentanillaOperadorProps) {
   const [ventanilla, setVentanilla] = useState<string>(empleado?.ventanilla?.id?.toString() || '');
+  const [ventanillaNombre, setVentanillaNombre] = useState<string>(empleado?.ventanilla?.nombre || '');
   
   // Hook de operador - solo se activa cuando hay ventanilla seleccionada
   const {
@@ -36,6 +37,7 @@ export default function VentanillaOperador({ empleado, onLogout }: VentanillaOpe
   useEffect(() => {
     if (empleado?.ventanilla?.id) {
       setVentanilla(empleado.ventanilla.id.toString());
+      setVentanillaNombre(empleado.ventanilla.nombre);
     }
   }, [empleado]);
 
@@ -179,7 +181,7 @@ export default function VentanillaOperador({ empleado, onLogout }: VentanillaOpe
               <Monitor size={24} />
               <div>
                 <div className="ventanilla-label">Operando en:</div>
-                <div className="ventanilla-nombre">Ventanilla {ventanilla}</div>
+                <div className="ventanilla-nombre">{ventanillaNombre || `Ventanilla ${ventanilla}`}</div>
               </div>
             </div>
 
@@ -272,6 +274,9 @@ export default function VentanillaOperador({ empleado, onLogout }: VentanillaOpe
                     <div className="no-turnos">
                       <User size={48} />
                       <p>No hay turnos en espera</p>
+                      <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>
+                        Verifica que la ventanilla tenga servicios asignados
+                      </p>
                     </div>
                   )}
                 </div>

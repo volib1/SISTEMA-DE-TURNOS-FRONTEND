@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Search, Filter, Eye, Clock, CheckCircle, Calendar } from 'lucide-react';
+import { Search, Filter, Eye, Clock, CheckCircle, Calendar, CalendarDays, List } from 'lucide-react';
 import { TicketAPI, type TicketDTO } from '../../services/ticket.service';
 import { EstadoTicketAPI, type EstadoTicketDTO } from '../../services/estado-ticket.service';
 
-const TicketCrud = () => {
+const TicketCrud: React.FC = () => {
   const [tickets, setTickets] = useState<TicketDTO[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -12,100 +12,71 @@ const TicketCrud = () => {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [estados, setEstados] = useState<EstadoTicketDTO[]>([]);
 
-  // Función para formatear fecha/hora correctamente en zona horaria de El Salvador
-  const formatFechaLocal = (fechaISO: string) => {
+  const getFechaFromTicket = (t: TicketDTO): Date | null => {
+    const raw = (t as any).fechaCreacion ?? (t as any).fecha_creacion;
+    if (!raw) return null;
+
+    const iso =
+      typeof raw === 'string' &&
+      !raw.endsWith('Z') &&
+      !raw.includes('+') &&
+      !raw.includes('-', 10)
+        ? `${raw}Z`
+        : raw;
+
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  // Fecha/hora local (America/El_Salvador)
+  const formatFechaLocal = (fechaISO?: string) => {
     if (!fechaISO) return 'N/A';
-    
-    try {
-      // Asegurar que la fecha se interprete como UTC si no tiene sufijo 'Z'
-      let fechaUTC = fechaISO;
-      if (!fechaISO.endsWith('Z') && !fechaISO.includes('+') && !fechaISO.includes('-', 10)) {
-        fechaUTC = fechaISO + 'Z';
-      }
-      
-      const fecha = new Date(fechaUTC);
-      
-      console.log('[TicketCrud] 🕐 Formateando fecha:', {
-        original: fechaISO,
-        procesada: fechaUTC,
-        objetoDate: fecha.toISOString(),
-        horaUTC: fecha.toUTCString()
-      });
-      
-      // Formatear en zona horaria de El Salvador (America/El_Salvador = UTC-6)
-      const resultado = fecha.toLocaleString('es-SV', {
-        timeZone: 'America/El_Salvador',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-      });
-      
-      console.log('[TicketCrud] ✅ Fecha formateada:', resultado);
-      return resultado;
-    } catch (error) {
-      console.error('[TicketCrud] Error formateando fecha:', error);
-      return fechaISO;
-    }
+    const iso =
+      !fechaISO.endsWith('Z') &&
+      !fechaISO.includes('+') &&
+      !fechaISO.includes('-', 10)
+        ? `${fechaISO}Z`
+        : fechaISO;
+
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return 'N/A';
+
+    return d.toLocaleString('es-SV', {
+      timeZone: 'America/El_Salvador',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
   };
 
   useEffect(() => {
-    fetchTicketsHoy(); // Cargar tickets de hoy por defecto
+    fetchTicketsHoy();
   }, []);
 
   const fetchTicketsHoy = async () => {
     setLoading(true);
     try {
-      console.log(`[TicketCrud] 📅 Cargando tickets de hoy...`);
-      
-      // Obtener TODOS los tickets y estados
       const [ticketResponse, estadosList] = await Promise.all([
-        TicketAPI.listar(), // SIN parámetro fecha - traer todos
+        TicketAPI.listar(),
         EstadoTicketAPI.listar(),
       ]);
-      
-      console.log('[TicketCrud] 📊 Respuesta completa de tickets:', ticketResponse);
-      
-      const todosLosTickets = Array.isArray(ticketResponse.items) ? ticketResponse.items : [];
-      const estados = Array.isArray(estadosList) ? estadosList : [];
-      
-      console.log(`[TicketCrud] 📋 Total tickets en BD: ${todosLosTickets.length}`);
-      
-      // Calcular inicio del día de hoy a las 00:00:00 hora local
-      const ahora = new Date();
-      const inicioDia = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), 0, 0, 0);
-      const finDia = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), 23, 59, 59);
-      
-      console.log(`[TicketCrud] 🕐 Rango de hoy: ${inicioDia.toISOString()} a ${finDia.toISOString()}`);
-      
-      // Filtrar tickets de hoy
-      const ticketsHoy = todosLosTickets.filter(ticket => {
-        if (!ticket.fecha_creacion) return false;
-        
-        const fechaTicket = new Date(ticket.fecha_creacion);
-        const esHoy = fechaTicket >= inicioDia && fechaTicket <= finDia;
-        
-        if (esHoy) {
-          console.log(`[TicketCrud] ✅ Ticket ${ticket.numero_ticket} es de hoy:`, {
-            fecha_creacion: ticket.fecha_creacion,
-            fecha_parseada: fechaTicket.toISOString(),
-            dentro_rango: esHoy
-          });
-        }
-        
-        return esHoy;
+
+      const all = Array.isArray(ticketResponse.items) ? ticketResponse.items : [];
+      const now = new Date();
+      const inicio = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+      const fin = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+
+      const hoy = all.filter((t) => {
+        const d = getFechaFromTicket(t);
+        return d ? d >= inicio && d <= fin : false;
       });
-      
-      console.log(`[TicketCrud] 🎯 Tickets de hoy filtrados: ${ticketsHoy.length}`, ticketsHoy);
-      
-      setTickets(ticketsHoy);
-      setEstados(estados);
-      
-    } catch (error) {
-      console.error('[TicketCrud] ❌ Error cargando tickets de hoy:', error);
+
+      setTickets(hoy);
+      setEstados(Array.isArray(estadosList) ? estadosList : []);
     } finally {
       setLoading(false);
     }
@@ -114,72 +85,44 @@ const TicketCrud = () => {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      console.log('[TicketCrud] 🔍 Cargando tickets y estados de la base de datos...');
-      
       const [ticketResponse, estadosList] = await Promise.all([
-        TicketAPI.listar(),         // { page, pageSize, total, items }
-        EstadoTicketAPI.listar(),   // [{ id, nombre, cantidad? }, ...]
+        TicketAPI.listar(),
+        EstadoTicketAPI.listar(),
       ]);
-      
-      console.log('[TicketCrud] 📊 Respuesta de tickets:', ticketResponse);
-      console.log('[TicketCrud] 📋 Estados disponibles:', estadosList);
-      
-      const tickets = Array.isArray(ticketResponse.items) ? ticketResponse.items : [];
-      const estados = Array.isArray(estadosList) ? estadosList : [];
-      
-      console.log(`[TicketCrud] ✅ Tickets cargados: ${tickets.length}`);
-      console.log(`[TicketCrud] ✅ Estados cargados: ${estados.length}`);
-      
-      setTickets(tickets);
-      setEstados(estados);
-      
-      if (tickets.length === 0) {
-        console.warn('[TicketCrud] ⚠️ No se encontraron tickets en la base de datos');
-      } else {
-        console.log('[TicketCrud] 📝 Primeros 3 tickets:', tickets.slice(0, 3));
-      }
-      
-    } catch (error) {
-      console.error('[TicketCrud] ❌ Error cargando tickets/estados:', error);
+
+      setTickets(Array.isArray(ticketResponse.items) ? ticketResponse.items : []);
+      setEstados(Array.isArray(estadosList) ? estadosList : []);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchTicketsHoy(); // Cargar tickets de hoy por defecto
-  }, []);
-
   const idEstadoPorNombre = (nombre: string) =>
-    estados.find(e => e.nombre?.toLowerCase() === nombre.toLowerCase())?.id;
+    estados.find((e) => (e.nombre ?? '').toLowerCase() === nombre.toLowerCase())?.id;
 
   const handleCambiarEstado = async (idTicket: number, idEstadoDestino?: number) => {
-    try {
-      if (!idEstadoDestino) return;
-      await TicketAPI.actualizar(idTicket, { idEstado: idEstadoDestino });
-      await fetchAll();
-    } catch (error) {
-      console.error('Error cambiando estado:', error);
-    }
+    if (!idEstadoDestino) return;
+    await TicketAPI.actualizar(idTicket, { idEstado: idEstadoDestino });
+    await fetchAll();
   };
 
   const getEstadoBadge = (estado?: { id: number; nombre: string }) => {
     const nombre = (estado?.nombre ?? '').toLowerCase();
     if (nombre.includes('pend')) return { text: estado?.nombre ?? 'Pendiente', class: 'warn' };
-    if (nombre.includes('atendid')) return { text: estado?.nombre ?? 'Atendido', class: 'ok' };
     if (nombre.includes('en atenc') || nombre.includes('atención')) return { text: estado?.nombre ?? 'En atención', class: 'ok' };
     if (nombre.includes('llam')) return { text: estado?.nombre ?? 'Llamando', class: 'ok' };
+    if (nombre.includes('atendid')) return { text: estado?.nombre ?? 'Atendido', class: 'ok' };
     return { text: estado?.nombre || 'Desconocido', class: 'ko' };
   };
 
   const getEstadoStats = () => {
-    const pendientes = tickets.filter(t => (t.estado?.nombre ?? '').toLowerCase().includes('pend')).length;
-    const enAtencion = tickets.filter(t => (t.estado?.nombre ?? '').toLowerCase().includes('atención')).length;
-    const finalizados = tickets.filter(t => (t.estado?.nombre ?? '').toLowerCase().includes('atendid')).length;
+    const pendientes = tickets.filter((t) => (t.estado?.nombre ?? '').toLowerCase().includes('pend')).length;
+    const enAtencion = tickets.filter((t) => (t.estado?.nombre ?? '').toLowerCase().includes('atención')).length;
+    const finalizados = tickets.filter((t) => (t.estado?.nombre ?? '').toLowerCase().includes('atendid')).length;
     return { pendientes, enAtencion, finalizados };
   };
 
-  const filteredTickets = tickets.filter(ticket => {
+  const filteredTickets = tickets.filter((ticket) => {
     const matchesSearch =
       (ticket.codigo ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (ticket.servicio?.nombre ?? '').toLowerCase().includes(searchTerm.toLowerCase());
@@ -188,96 +131,122 @@ const TicketCrud = () => {
   });
 
   const stats = getEstadoStats();
-
   const idEnAtencion = idEstadoPorNombre('En atención');
   const idAtendido = idEstadoPorNombre('Atendido');
 
   return (
     <div>
       {/* Header */}
-      <div className="section-header">
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '2.5rem',
+        padding: '2rem',
+        background: 'linear-gradient(135deg, #0A2342 0%, #132743 100%)',
+        borderRadius: '16px',
+        boxShadow: '0 8px 32px rgba(10, 35, 66, 0.25), 0 2px 8px rgba(0, 0, 0, 0.1)',
+        border: '2px solid #E9C46A',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        {/* Línea decorativa superior */}
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '4px',
+          background: 'linear-gradient(90deg, #E9C46A, #DDB957, #E9C46A)',
+        }} />
         <div>
-          <h3>Gestión de Tickets</h3>
-          <p style={{ color: 'var(--muted)', fontSize: '14px', margin: '4px 0 0 0' }}>
+          <h3 style={{
+            fontSize: '2.75rem',
+            fontWeight: 700,
+            margin: 0,
+            color: '#E9C46A',
+            fontFamily: "'Times New Roman', Georgia, serif",
+            letterSpacing: '0.02em',
+            textShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
+          }}>Gestión de Tickets</h3>
+          <p style={{
+            color: 'rgba(255, 255, 255, 0.85)',
+            fontSize: '1.1rem',
+            margin: '0.5rem 0 0 0',
+            fontFamily: "'Times New Roman', Georgia, serif",
+            fontStyle: 'italic',
+          }}>
             Monitoreo y gestión de todos los tickets del sistema
           </p>
         </div>
-        <div className="actions">
-          <button onClick={fetchTicketsHoy} className="btn">📅 Hoy</button>
-          <button onClick={fetchAll} className="btn" style={{ marginLeft: '8px' }}>📋 Todos</button>
-          <button 
-            onClick={async () => {
-              console.log('[TicketCrud DEBUG] 🎯 DIAGNÓSTICO COMPLETO DE ESTADOS:');
-              
-              // 1. Verificar estados disponibles
-              try {
-                console.log('1. 📋 Consultando estados...');
-                const estadosResponse = await fetch('http://localhost:5079/api/EstadoTicket/Lista');
-                if (estadosResponse.ok) {
-                  const estadosData = await estadosResponse.json();
-                  console.log('✅ Estados encontrados:', estadosData.length);
-                  
-                  estadosData.forEach((estado: any, index: number) => {
-                    const esPendiente = estado.nombre === 'Pendiente';
-                    const esSimilar = estado.nombre.toLowerCase().includes('pendiente');
-                    console.log(`${index + 1}. ID: ${estado.id} | Nombre: "${estado.nombre}" | Cantidad: ${estado.cantidad || 0}${esPendiente ? ' ← EXACTO' : esSimilar ? ' ← SIMILAR' : ''}`);
-                  });
-                  
-                  // Buscar específicamente "Pendiente"
-                  const pendienteExacto = estadosData.find((e: any) => e.nombre === 'Pendiente');
-                  const pendienteID1 = estadosData.find((e: any) => e.id === 1);
-                  
-                  console.log('\n🔍 ANÁLISIS ESPECÍFICO:');
-                  if (pendienteExacto) {
-                    console.log(`✅ Estado "Pendiente" existe con ID: ${pendienteExacto.id}`);
-                    if (pendienteExacto.id !== 1) {
-                      console.log(`❌ PROBLEMA: El código busca ID=1 pero "Pendiente" tiene ID=${pendienteExacto.id}`);
-                      console.log(`💡 SOLUCIÓN: Cambiar en KioskoController.cs:`);
-                      console.log(`   .FirstOrDefaultAsync(e => e.id == ${pendienteExacto.id})`);
-                    }
-                  } else {
-                    console.log('❌ No se encontró estado exacto "Pendiente"');
-                  }
-                  
-                  if (pendienteID1) {
-                    console.log(`📌 Estado con ID=1: "${pendienteID1.nombre}"`);
-                  } else {
-                    console.log('❌ No existe estado con ID=1');
-                  }
-                  
-                } else {
-                  console.error('❌ Error consultando estados:', estadosResponse.status);
-                }
-              } catch (error) {
-                console.error('❌ Error:', error);
-              }
-              
-              // 2. Test de creación específico
-              console.log('\n2. 🧪 Probando creación de ticket...');
-              try {
-                const crearResponse = await fetch('http://localhost:5079/api/kiosko/ticket?idServicio=8', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' }
-                });
-                
-                console.log('� Status creación:', crearResponse.status);
-                
-                if (!crearResponse.ok) {
-                  const errorText = await crearResponse.text();
-                  console.log('❌ Error de creación:', errorText);
-                }
-              } catch (error) {
-                console.error('❌ Error en creación:', error);
-              }
-              
-              console.log('\n📋 Estado actual del componente:');
-              console.log('- Tickets cargados:', tickets.length);
-              console.log('- Estados disponibles:', estados.length);
-            }} 
-            className="btn" 
-            style={{ marginLeft: '8px', fontSize: '12px', backgroundColor: '#6366f1' }}
+        <div className="actions" style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={fetchTicketsHoy}
+            style={{
+              padding: '12px 20px',
+              fontSize: 14,
+              fontWeight: 600,
+              borderRadius: '10px',
+              background: 'linear-gradient(135deg, #0A2342 0%, #132743 100%)',
+              border: '2px solid #E9C46A',
+              color: '#E9C46A',
+              boxShadow: '0 4px 12px rgba(10, 35, 66, 0.30)',
+              transition: 'transform .15s ease, box-shadow .15s ease, background .15s ease',
+              fontFamily: "'Times New Roman', Georgia, serif",
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer',
+            }}
+            onMouseEnter={(e) => {
+              const t = e.currentTarget;
+              t.style.transform = 'translateY(-2px)';
+              t.style.boxShadow = '0 8px 24px rgba(233, 196, 106, 0.35)';
+              t.style.background = '#E9C46A';
+              t.style.color = '#0A2342';
+            }}
+            onMouseLeave={(e) => {
+              const t = e.currentTarget;
+              t.style.transform = 'translateY(0)';
+              t.style.boxShadow = '0 4px 12px rgba(10, 35, 66, 0.30)';
+              t.style.background = 'linear-gradient(135deg, #0A2342 0%, #132743 100%)';
+              t.style.color = '#E9C46A';
+            }}
           >
-            🔧 Debug
+            <CalendarDays size={16} />
+            Hoy
+          </button>
+          <button
+            onClick={fetchAll}
+            style={{
+              padding: '12px 20px',
+              fontSize: 14,
+              fontWeight: 600,
+              borderRadius: '10px',
+              background: '#E9C46A',
+              border: '2px solid #E9C46A',
+              color: '#0A2342',
+              boxShadow: '0 4px 12px rgba(233, 196, 106, 0.35)',
+              transition: 'transform .15s ease, box-shadow .15s ease, background .15s ease',
+              fontFamily: "'Times New Roman', Georgia, serif",
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer',
+            }}
+            onMouseEnter={(e) => {
+              const t = e.currentTarget;
+              t.style.transform = 'translateY(-2px)';
+              t.style.boxShadow = '0 8px 24px rgba(233, 196, 106, 0.45)';
+            }}
+            onMouseLeave={(e) => {
+              const t = e.currentTarget;
+              t.style.transform = 'translateY(0)';
+              t.style.boxShadow = '0 4px 12px rgba(233, 196, 106, 0.35)';
+            }}
+          >
+            <List size={16} />
+            Todos
           </button>
         </div>
       </div>
@@ -303,42 +272,48 @@ const TicketCrud = () => {
       </div>
 
       {/* Filters */}
-      <div className="crud-section" style={{ marginBottom: '20px' }}>
+      <div className="crud-section" style={{ marginBottom: 20 }}>
         <div className="toolbar">
           <div style={{ position: 'relative', flex: 1 }}>
-            <Search size={16} style={{
-              position: 'absolute',
-              left: '12px',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--muted)'
-            }} />
+            <Search
+              size={16}
+              style={{
+                position: 'absolute',
+                left: 12,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: 'var(--muted)',
+              }}
+            />
             <input
               type="text"
               placeholder="Buscar por código o servicio..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="input"
-              style={{ paddingLeft: '40px' }}
+              style={{ paddingLeft: 40 }}
             />
           </div>
 
-          <div style={{ position: 'relative', width: '220px' }}>
-            <Filter size={16} style={{
-              position: 'absolute',
-              left: '12px',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--muted)'
-            }} />
+          <div style={{ position: 'relative', width: 220 }}>
+            <Filter
+              size={16}
+              style={{
+                position: 'absolute',
+                left: 12,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: 'var(--muted)',
+              }}
+            />
             <select
               value={selectedEstado}
               onChange={(e) => setSelectedEstado(e.target.value === '' ? '' : Number(e.target.value))}
               className="input"
-              style={{ paddingLeft: '40px', appearance: 'none' }}
+              style={{ paddingLeft: 40, appearance: 'none' }}
             >
               <option value="">Todos los estados</option>
-              {estados.map(e => (
+              {estados.map((e) => (
                 <option key={e.id} value={e.id}>{e.nombre}</option>
               ))}
             </select>
@@ -357,30 +332,30 @@ const TicketCrud = () => {
                 <th>Fecha</th>
                 <th>Ventanilla</th>
                 <th>Estado</th>
-                <th style={{ width: '140px', textAlign: 'center' }}>Acciones</th>
+                <th style={{ width: 140, textAlign: 'center' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: '40px' }}>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: 40 }}>
                     Cargando tickets...
                   </td>
                 </tr>
               ) : filteredTickets.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)' }}>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
                     {tickets.length === 0 ? (
                       <div>
-                        <div style={{ fontSize: '18px', marginBottom: '8px' }}>📋 No hay tickets en la base de datos</div>
-                        <div style={{ fontSize: '14px' }}>
+                        <div style={{ fontSize: 18, marginBottom: 8 }}>📋 No hay tickets en la base de datos</div>
+                        <div style={{ fontSize: 14 }}>
                           Los tickets aparecerán aquí cuando se generen desde el kiosko
                         </div>
                       </div>
                     ) : (
                       <div>
-                        <div style={{ fontSize: '18px', marginBottom: '8px' }}>🔍 No se encontraron tickets</div>
-                        <div style={{ fontSize: '14px' }}>
+                        <div style={{ fontSize: 18, marginBottom: 8 }}>🔍 No se encontraron tickets</div>
+                        <div style={{ fontSize: 14 }}>
                           Intenta cambiar los filtros o términos de búsqueda
                         </div>
                       </div>
@@ -390,22 +365,27 @@ const TicketCrud = () => {
               ) : (
                 filteredTickets.map((ticket) => {
                   const estadoBadge = getEstadoBadge(ticket.estado);
-                  const puedeAtender = ticket.estado?.id !== undefined && ticket.estado?.id !== idEnAtencion && idEnAtencion;
-                  const puedeFinalizar = ticket.estado?.id === idEnAtencion && idAtendido;
+                  const enAtencion = idEnAtencion;
+                  const atendido = idAtendido;
+                  const puedeAtender = ticket.estado?.id !== undefined && ticket.estado?.id !== enAtencion && !!enAtencion;
+                  const puedeFinalizar = ticket.estado?.id === enAtencion && !!atendido;
+
+                  const rawFecha: string | undefined =
+                    (ticket as any).fechaCreacion ?? (ticket as any).fecha_creacion;
 
                   return (
                     <tr key={ticket.id}>
                       <td>
                         <div>
                           <div style={{ fontWeight: 600, color: 'var(--primary)' }}>{ticket.codigo}</div>
-                          <div style={{ fontSize: '12px', color: 'var(--muted)' }}>ID: {ticket.id}</div>
+                          <div style={{ fontSize: 12, color: 'var(--muted)' }}>ID: {ticket.id}</div>
                         </div>
                       </td>
                       <td>{ticket.servicio?.nombre || 'N/A'}</td>
                       <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <Calendar size={14} color="var(--muted)" />
-                          <span>{formatFechaLocal(ticket.fechaCreacion)}</span>
+                          <span>{formatFechaLocal(rawFecha)}</span>
                         </div>
                       </td>
                       <td>
@@ -415,7 +395,7 @@ const TicketCrud = () => {
                         <span className={`status pill ${estadoBadge.class}`}>{estadoBadge.text}</span>
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
                           <button
                             onClick={() => { setSelectedTicket(ticket); setShowDetailModal(true); }}
                             className="icon-btn"
@@ -426,7 +406,7 @@ const TicketCrud = () => {
 
                           {puedeAtender && (
                             <button
-                              onClick={() => handleCambiarEstado(ticket.id, idEnAtencion)}
+                              onClick={() => handleCambiarEstado(ticket.id, enAtencion)}
                               className="icon-btn"
                               title="Marcar En atención"
                               style={{ color: 'var(--primary)' }}
@@ -437,7 +417,7 @@ const TicketCrud = () => {
 
                           {puedeFinalizar && (
                             <button
-                              onClick={() => handleCambiarEstado(ticket.id, idAtendido)}
+                              onClick={() => handleCambiarEstado(ticket.id, atendido)}
                               className="icon-btn"
                               title="Marcar Atendido"
                               style={{ color: 'var(--success)' }}
@@ -461,69 +441,89 @@ const TicketCrud = () => {
         <>
           <div className="modal-overlay" onClick={() => setShowDetailModal(false)}></div>
           <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 9999 }}>
-            <div className="modal-content" style={{ width: '500px', position: 'relative', zIndex: 1 }}>
+            <div className="modal-content" style={{ width: 500, position: 'relative', zIndex: 1 }}>
               <div className="modal-header">
                 <h4 style={{ margin: 0 }}>Detalles del Ticket</h4>
-                <button
-                  onClick={() => setShowDetailModal(false)}
-                  className="modal-close"
-                >
-                  ×
-                </button>
+                <button onClick={() => setShowDetailModal(false)} className="modal-close">×</button>
               </div>
               <div className="modal-body">
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                  <div style={{ 
-                    textAlign: 'center',
-                    padding: '20px',
-                    background: 'linear-gradient(135deg, var(--primary-50), rgba(59, 130, 246, 0.08))',
-                    borderRadius: '12px',
-                    border: '1px solid var(--primary-100)'
-                  }}>
-                    <div style={{ fontWeight: 600, color: 'var(--muted)', fontSize: '12px', textTransform: 'uppercase', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                  <div
+                    style={{
+                      textAlign: 'center',
+                      padding: 20,
+                      background: 'linear-gradient(135deg, var(--primary-50), rgba(59, 130, 246, 0.08))',
+                      borderRadius: 12,
+                      border: '1px solid var(--primary-100)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontWeight: 600,
+                        color: 'var(--muted)',
+                        fontSize: 12,
+                        textTransform: 'uppercase',
+                        marginBottom: 8,
+                      }}
+                    >
                       🎫 Código del Ticket
                     </div>
-                    <div style={{ fontSize: '32px', fontWeight: 700, color: 'var(--primary)', letterSpacing: '0.02em' }}>
+                    <div
+                      style={{
+                        fontSize: 32,
+                        fontWeight: 700,
+                        color: 'var(--primary)',
+                        letterSpacing: '0.02em',
+                      }}
+                    >
                       {selectedTicket.codigo}
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                    <div style={{ 
-                      padding: '16px',
-                      backgroundColor: 'var(--surface)',
-                      borderRadius: '10px',
-                      border: '1px solid var(--border)'
-                    }}>
-                      <label style={{ 
-                        fontWeight: 600, 
-                        color: 'var(--muted)', 
-                        fontSize: '12px', 
-                        textTransform: 'uppercase',
-                        display: 'block',
-                        marginBottom: '8px'
-                      }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                    <div
+                      style={{
+                        padding: 16,
+                        backgroundColor: 'var(--surface)',
+                        borderRadius: 10,
+                        border: '1px solid var(--border)',
+                      }}
+                    >
+                      <label
+                        style={{
+                          fontWeight: 600,
+                          color: 'var(--muted)',
+                          fontSize: 12,
+                          textTransform: 'uppercase',
+                          display: 'block',
+                          marginBottom: 8,
+                        }}
+                      >
                         🛎️ Servicio
                       </label>
-                      <div style={{ fontSize: '16px', fontWeight: 500, color: 'var(--text)' }}>
+                      <div style={{ fontSize: 16, fontWeight: 500, color: 'var(--text)' }}>
                         {selectedTicket.servicio?.nombre || 'No especificado'}
                       </div>
                     </div>
 
-                    <div style={{ 
-                      padding: '16px',
-                      backgroundColor: 'var(--surface)',
-                      borderRadius: '10px',
-                      border: '1px solid var(--border)'
-                    }}>
-                      <label style={{ 
-                        fontWeight: 600, 
-                        color: 'var(--muted)', 
-                        fontSize: '12px', 
-                        textTransform: 'uppercase',
-                        display: 'block',
-                        marginBottom: '8px'
-                      }}>
+                    <div
+                      style={{
+                        padding: 16,
+                        backgroundColor: 'var(--surface)',
+                        borderRadius: 10,
+                        border: '1px solid var(--border)',
+                      }}
+                    >
+                      <label
+                        style={{
+                          fontWeight: 600,
+                          color: 'var(--muted)',
+                          fontSize: 12,
+                          textTransform: 'uppercase',
+                          display: 'block',
+                          marginBottom: 8,
+                        }}
+                      >
                         📊 Estado Actual
                       </label>
                       <div>
@@ -534,57 +534,67 @@ const TicketCrud = () => {
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                    <div style={{ 
-                      padding: '16px',
-                      backgroundColor: 'var(--surface)',
-                      borderRadius: '10px',
-                      border: '1px solid var(--border)'
-                    }}>
-                      <label style={{ 
-                        fontWeight: 600, 
-                        color: 'var(--muted)', 
-                        fontSize: '12px', 
-                        textTransform: 'uppercase',
-                        display: 'block',
-                        marginBottom: '8px'
-                      }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                    <div
+                      style={{
+                        padding: 16,
+                        backgroundColor: 'var(--surface)',
+                        borderRadius: 10,
+                        border: '1px solid var(--border)',
+                      }}
+                    >
+                      <label
+                        style={{
+                          fontWeight: 600,
+                          color: 'var(--muted)',
+                          fontSize: 12,
+                          textTransform: 'uppercase',
+                          display: 'block',
+                          marginBottom: 8,
+                        }}
+                      >
                         📅 Fecha de Creación
                       </label>
-                      <div style={{ fontSize: '14px', color: 'var(--text)' }}>
-                        {formatFechaLocal(selectedTicket.fechaCreacion)}
+                      <div style={{ fontSize: 14, color: 'var(--text)' }}>
+                        {formatFechaLocal((selectedTicket as any).fechaCreacion ?? (selectedTicket as any).fecha_creacion)}
                       </div>
                     </div>
 
-                    <div style={{ 
-                      padding: '16px',
-                      backgroundColor: 'var(--surface)',
-                      borderRadius: '10px',
-                      border: '1px solid var(--border)'
-                    }}>
-                      <label style={{ 
-                        fontWeight: 600, 
-                        color: 'var(--muted)', 
-                        fontSize: '12px', 
-                        textTransform: 'uppercase',
-                        display: 'block',
-                        marginBottom: '8px'
-                      }}>
+                    <div
+                      style={{
+                        padding: 16,
+                        backgroundColor: 'var(--surface)',
+                        borderRadius: 10,
+                        border: '1px solid var(--border)',
+                      }}
+                    >
+                      <label
+                        style={{
+                          fontWeight: 600,
+                          color: 'var(--muted)',
+                          fontSize: 12,
+                          textTransform: 'uppercase',
+                          display: 'block',
+                          marginBottom: 8,
+                        }}
+                      >
                         🪟 Ventanilla Asignada
                       </label>
-                      <div style={{ fontSize: '14px', color: 'var(--text)' }}>
+                      <div style={{ fontSize: 14, color: 'var(--text)' }}>
                         {selectedTicket.turno?.idVentanilla ? `Ventanilla ${selectedTicket.turno.idVentanilla}` : 'No asignada'}
                       </div>
                     </div>
                   </div>
 
                   {/* Action buttons */}
-                  <div style={{ 
-                    display: 'flex', 
-                    gap: '16px', 
-                    paddingTop: '24px', 
-                    borderTop: '2px solid var(--border)'
-                  }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 16,
+                      paddingTop: 24,
+                      borderTop: '2px solid var(--border)',
+                    }}
+                  >
                     {idEnAtencion && selectedTicket.estado?.id !== idEnAtencion && (
                       <button
                         onClick={() => {
@@ -592,11 +602,11 @@ const TicketCrud = () => {
                           setShowDetailModal(false);
                         }}
                         className="btn btn-primary"
-                        style={{ 
+                        style={{
                           flex: 1,
                           padding: '14px 20px',
                           fontWeight: 600,
-                          borderRadius: '10px',
+                          borderRadius: 10,
                           background: 'linear-gradient(135deg, var(--primary), var(--primary-600))',
                           border: 'none',
                           color: 'white',
@@ -604,20 +614,10 @@ const TicketCrud = () => {
                           transition: 'all 0.2s ease',
                           display: 'flex',
                           alignItems: 'center',
-                          justifyContent: 'center'
-                        }}
-                        onMouseEnter={(e) => {
-                          const target = e.target as HTMLButtonElement;
-                          target.style.transform = 'translateY(-1px)';
-                          target.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.4)';
-                        }}
-                        onMouseLeave={(e) => {
-                          const target = e.target as HTMLButtonElement;
-                          target.style.transform = 'translateY(0)';
-                          target.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.3)';
+                          justifyContent: 'center',
                         }}
                       >
-                        <Clock size={18} style={{ marginRight: '8px' }} />
+                        <Clock size={18} style={{ marginRight: 8 }} />
                         🎯 Atender Ticket
                       </button>
                     )}
@@ -628,11 +628,11 @@ const TicketCrud = () => {
                           setShowDetailModal(false);
                         }}
                         className="btn"
-                        style={{ 
+                        style={{
                           flex: 1,
                           padding: '14px 20px',
                           fontWeight: 600,
-                          borderRadius: '10px',
+                          borderRadius: 10,
                           background: 'linear-gradient(135deg, var(--success), #059669)',
                           border: 'none',
                           color: 'white',
@@ -640,20 +640,10 @@ const TicketCrud = () => {
                           transition: 'all 0.2s ease',
                           display: 'flex',
                           alignItems: 'center',
-                          justifyContent: 'center'
-                        }}
-                        onMouseEnter={(e) => {
-                          const target = e.target as HTMLButtonElement;
-                          target.style.transform = 'translateY(-1px)';
-                          target.style.boxShadow = '0 6px 20px rgba(16, 185, 129, 0.4)';
-                        }}
-                        onMouseLeave={(e) => {
-                          const target = e.target as HTMLButtonElement;
-                          target.style.transform = 'translateY(0)';
-                          target.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.3)';
+                          justifyContent: 'center',
                         }}
                       >
-                        <CheckCircle size={18} style={{ marginRight: '8px' }} />
+                        <CheckCircle size={18} style={{ marginRight: 8 }} />
                         ✅ Finalizar Ticket
                       </button>
                     )}

@@ -18,7 +18,7 @@ import {
   Plus
 } from 'lucide-react';
 import { MediaAPI, type MediaFileDTO, type MediaConfigDTO, type MediaUploadDTO } from '../../services/media.service';
-import './AdminMultimedia.css';
+import '../../styles/AdminMultimedia.css';
 
 const AdminMultimedia: React.FC = () => {
   const [mediaFiles, setMediaFiles] = useState<MediaFileDTO[]>([]);
@@ -186,19 +186,114 @@ const AdminMultimedia: React.FC = () => {
 
   return (
     <div className="admin-multimedia">
-      <div className="admin-header">
-        <h1>Administración de Multimedia</h1>
-        <div className="header-actions">
+      {/* Header institucional */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '2.5rem',
+        padding: '2rem',
+        background: 'linear-gradient(135deg, #0A2342 0%, #132743 100%)',
+        borderRadius: '16px',
+        boxShadow: '0 8px 32px rgba(10, 35, 66, 0.25), 0 2px 8px rgba(0, 0, 0, 0.1)',
+        border: '2px solid #E9C46A',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        {/* Línea decorativa superior */}
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '4px',
+          background: 'linear-gradient(90deg, #E9C46A, #DDB957, #E9C46A)',
+        }} />
+        <div>
+          <h1 style={{
+            fontSize: '2.75rem',
+            fontWeight: 700,
+            margin: 0,
+            color: '#E9C46A',
+            fontFamily: "'Times New Roman', Georgia, serif",
+            letterSpacing: '0.02em',
+            textShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
+          }}>Administración de Multimedia</h1>
+          <p style={{
+            color: 'rgba(255, 255, 255, 0.85)',
+            fontSize: '1.1rem',
+            margin: '0.5rem 0 0 0',
+            fontFamily: "'Times New Roman', Georgia, serif",
+            fontStyle: 'italic',
+          }}>
+            Gestiona el contenido multimedia de la pantalla de espera
+          </p>
+        </div>
+        <div className="header-actions" style={{ display: 'flex', gap: 10 }}>
           <button
             onClick={() => setShowConfigModal(true)}
-            className="btn-secondary"
+            style={{
+              padding: '12px 20px',
+              fontSize: 14,
+              fontWeight: 600,
+              borderRadius: '10px',
+              background: 'linear-gradient(135deg, #0A2342 0%, #132743 100%)',
+              border: '2px solid #E9C46A',
+              color: '#E9C46A',
+              boxShadow: '0 4px 12px rgba(10, 35, 66, 0.30)',
+              transition: 'transform .15s ease, box-shadow .15s ease, background .15s ease',
+              fontFamily: "'Times New Roman', Georgia, serif",
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer',
+            }}
+            onMouseEnter={(e) => {
+              const t = e.currentTarget;
+              t.style.transform = 'translateY(-2px)';
+              t.style.boxShadow = '0 8px 24px rgba(233, 196, 106, 0.35)';
+              t.style.background = '#E9C46A';
+              t.style.color = '#0A2342';
+            }}
+            onMouseLeave={(e) => {
+              const t = e.currentTarget;
+              t.style.transform = 'translateY(0)';
+              t.style.boxShadow = '0 4px 12px rgba(10, 35, 66, 0.30)';
+              t.style.background = 'linear-gradient(135deg, #0A2342 0%, #132743 100%)';
+              t.style.color = '#E9C46A';
+            }}
           >
             <Settings size={18} />
             Configuración
           </button>
           <button
             onClick={() => setShowUploadModal(true)}
-            className="btn-primary"
+            style={{
+              padding: '12px 20px',
+              fontSize: 14,
+              fontWeight: 600,
+              borderRadius: '10px',
+              background: '#E9C46A',
+              border: '2px solid #E9C46A',
+              color: '#0A2342',
+              boxShadow: '0 4px 12px rgba(233, 196, 106, 0.35)',
+              transition: 'transform .15s ease, box-shadow .15s ease, background .15s ease',
+              fontFamily: "'Times New Roman', Georgia, serif",
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer',
+            }}
+            onMouseEnter={(e) => {
+              const t = e.currentTarget;
+              t.style.transform = 'translateY(-2px)';
+              t.style.boxShadow = '0 8px 24px rgba(233, 196, 106, 0.45)';
+            }}
+            onMouseLeave={(e) => {
+              const t = e.currentTarget;
+              t.style.transform = 'translateY(0)';
+              t.style.boxShadow = '0 4px 12px rgba(233, 196, 106, 0.35)';
+            }}
           >
             <Plus size={18} />
             Agregar Archivo

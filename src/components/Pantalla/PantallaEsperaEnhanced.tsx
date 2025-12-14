@@ -4,9 +4,13 @@ import { PantallaFeedAPI } from '../../services/pantalla-feed.service';
 import { MediaAPI } from '../../services/media.service';
 import type { TicketLlamadoDto } from '../../services/pantalla-feed.service';
 import type { MediaFileDTO, MediaConfigDTO } from '../../services/media.service';
-import './PantallaEspera.enhanced.css';
+import '../../styles/PantallaEspera.enhanced.css';
 
-export default function PantallaEsperaEnhanced() {
+interface PantallaEsperaEnhancedProps {
+  disableVoice?: boolean;
+}
+
+export default function PantallaEsperaEnhanced({ disableVoice = false }: PantallaEsperaEnhancedProps = {}) {
   const [llamados, setLlamados] = useState<TicketLlamadoDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +25,7 @@ export default function PantallaEsperaEnhanced() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Estados para sintesis de voz
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [voiceEnabled, setVoiceEnabled] = useState(!disableVoice);
   const lastAnnouncedRef = useRef<Set<string>>(new Set());
 
   /**
@@ -56,31 +60,133 @@ export default function PantallaEsperaEnhanced() {
       lastAnnouncedRef.current = new Set(valores.slice(-10));
     }
 
-    const mensaje = `Turno ${llamado.ticket}, ventanilla ${llamado.ventanilla}`;
-    console.log('[PantallaEnhanced] Mensaje:', mensaje);
+    console.log('[PantallaEnhanced] Mensaje para ticket:', llamado.ticket, 'ventanilla:', llamado.ventanilla);
 
     window.speechSynthesis.cancel();
 
     setTimeout(() => {
-      const utterance = new SpeechSynthesisUtterance(mensaje);
-      utterance.lang = 'es-ES';
-      utterance.rate = 0.9;
-      utterance.pitch = 1.0;
-      utterance.volume = 1.0;
+      // Parte 1: "Turno del cliente:" (rápido)
+      const parte1 = new SpeechSynthesisUtterance('Turno del cliente:');
+      parte1.lang = 'es-ES';
+      parte1.rate = 1.2; // Un poco más rápido
+      parte1.pitch = 1.1;
+      parte1.volume = 1.0;
+
+      // Parte 2: Número del ticket (lento, separando dígitos)
+      const ticketDigitos = llamado.ticket.split('').join(', ');
+      const parte2 = new SpeechSynthesisUtterance(ticketDigitos);
+      parte2.lang = 'es-ES';
+      parte2.rate = 0.8; // Un poco más rápido pero aún claro
+      parte2.pitch = 1.1;
+      parte2.volume = 1.0;
+
+      // Parte 3: ", en el numero de ventanilla:" (rápido)
+      const parte3 = new SpeechSynthesisUtterance(', en el numero de ventanilla:');
+      parte3.lang = 'es-ES';
+      parte3.rate = 1.2; // Un poco más rápido
+      parte3.pitch = 1.1;
+      parte3.volume = 1.0;
+
+      // Parte 4: Número de ventanilla (normal) - Solo el número
+      const numeroVentanilla = llamado.ventanilla.replace(/[^\d]/g, ''); // Extraer solo números
+      const parte4 = new SpeechSynthesisUtterance(numeroVentanilla);
+      parte4.lang = 'es-ES';
+      parte4.rate = 1.0; // Un poco más rápido
+      parte4.pitch = 1.1;
+      parte4.volume = 1.0;
 
       const voices = window.speechSynthesis.getVoices();
-      const spanishVoice = voices.find(v => v.lang.startsWith('es'));
-      if (spanishVoice) {
-        utterance.voice = spanishVoice;
-        console.log('[PantallaEnhanced] Voz seleccionada:', spanishVoice.name);
+      
+      // Priorizar voces FEMENINAS de mejor calidad
+      const preferredVoices = [
+        // Google (las mejores)
+        'Google español',
+        'Google español de España',
+        'es-ES-Standard-A', // Voz femenina
+        'es-ES-Wavenet-C', // Voz femenina premium
+        'es-MX-Standard-A', // Voz femenina México
+        
+        // Microsoft (muy buenas)
+        'Microsoft Helena', // Windows - Femenina
+        'Microsoft Sabina', // Windows - Femenina
+        'Microsoft Laura', // Windows - Femenina
+        'Helena',
+        'Sabina',
+        'Laura',
+        
+        // Apple (buenas)
+        'Paulina', // macOS - Femenina
+        'Monica', // macOS - Femenina
+        'Angelica', // iOS - Femenina
+        
+        // Otras
+        'es-ES-Standard',
+        'Spanish Female',
+      ];
+
+      let selectedVoice = null;
+
+      // Buscar voz preferida
+      for (const preferred of preferredVoices) {
+        selectedVoice = voices.find(v => 
+          v.name.includes(preferred) && v.lang.startsWith('es')
+        );
+        if (selectedVoice) break;
       }
 
-      utterance.onstart = () => console.log('[PantallaEnhanced] Reproduccion iniciada');
-      utterance.onend = () => console.log('[PantallaEnhanced] Reproduccion finalizada');
-      utterance.onerror = (e) => console.error('[PantallaEnhanced] Error:', e);
+      // Si no encuentra preferida, buscar cualquier voz FEMENINA española
+      if (!selectedVoice) {
+        selectedVoice = voices.find(v => 
+          v.lang.startsWith('es') && 
+          (v.name.toLowerCase().includes('female') || 
+           v.name.toLowerCase().includes('woman') ||
+           v.name.toLowerCase().includes('mujer'))
+        );
+      }
 
-      console.log('[PantallaEnhanced] Llamando speak()');
-      window.speechSynthesis.speak(utterance);
+      // Si no, buscar voces en línea (mejor calidad)
+      if (!selectedVoice) {
+        selectedVoice = voices.find(v => 
+          v.lang.startsWith('es') && !v.localService
+        );
+      }
+
+      // Fallback: cualquier voz española
+      if (!selectedVoice) {
+        selectedVoice = voices.find(v => v.lang.startsWith('es'));
+      }
+
+      // Asignar la misma voz a todas las partes
+      if (selectedVoice) {
+        [parte1, parte2, parte3, parte4].forEach(p => p.voice = selectedVoice);
+        console.log('[PantallaEnhanced] Voz seleccionada:', selectedVoice.name, '| Local:', selectedVoice.localService);
+      } else {
+        console.warn('[PantallaEnhanced] No se encontró voz española');
+      }
+
+      // Reproducir las partes en secuencia
+      parte1.onend = () => {
+        console.log('[PantallaEnhanced] Parte 1 finalizada, reproduciendo ticket');
+        window.speechSynthesis.speak(parte2);
+      };
+
+      parte2.onend = () => {
+        console.log('[PantallaEnhanced] Parte 2 finalizada, reproduciendo ventanilla');
+        window.speechSynthesis.speak(parte3);
+      };
+
+      parte3.onend = () => {
+        console.log('[PantallaEnhanced] Parte 3 finalizada, reproduciendo número ventanilla');
+        window.speechSynthesis.speak(parte4);
+      };
+
+      parte4.onend = () => console.log('[PantallaEnhanced] Reproducción completa finalizada');
+      
+      parte1.onerror = parte2.onerror = parte3.onerror = parte4.onerror = 
+        (e) => console.error('[PantallaEnhanced] Error:', e);
+
+      console.log('[PantallaEnhanced] Iniciando reproducción en partes');
+      window.speechSynthesis.speak(parte1);
     }, 100);
   };
 

@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { LoginAPI } from '../../services/login.service';
 import { MockLoginAPI } from '../../services/mock-login.service';
 import type { LoginRequest, LoginResponse } from '../../services/login.service';
-import './Login.css';
+import logoImg from '../../assets/logo.webp';
+import '../../styles/Login.css';
 
-// Cambiar a true para usar el mock, false para usar API real
-const USE_MOCK_API = true;
+const USE_MOCK_API = false; // Cambiado a false para usar la API real
 
 interface LoginProps {
   onLoginSuccess: (user: LoginResponse) => void;
@@ -42,9 +42,13 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onError }) => {
     setError('');
 
     try {
+      console.log('[Login] Intentando iniciar sesión con:', { correo: formData.correo });
+      
       const response = USE_MOCK_API 
         ? await MockLoginAPI.login(formData)
         : await LoginAPI.login(formData);
+      
+      console.log('[Login] Login exitoso:', response);
       
       // Guardar información del usuario en localStorage
       localStorage.setItem('user', JSON.stringify(response));
@@ -52,6 +56,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onError }) => {
       
       onLoginSuccess(response);
     } catch (err: any) {
+      console.error('[Login] Error al iniciar sesión:', err);
       const errorMessage = err.message || 'Error al iniciar sesión. Verifica tus credenciales.';
       setError(errorMessage);
       if (onError) {
@@ -66,12 +71,17 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onError }) => {
     <div className="login-container">
       <div className="login-card">
         <div className="login-header">
-          <h2>Sistema de Turnos</h2>
-          <p>Inicia sesión para acceder al sistema</p>
+          <img
+            src={logoImg}
+            alt="Gobierno Municipal - Ciudad Portuaria"
+            className="login-logo"
+          />
+          <h2>SISTEMA DE GESTIÓN DE TURNOS</h2>
+          <p>Acceso al portal administrativo</p>
         </div>
         
         <form className="login-form" onSubmit={handleSubmit}>
-          <div className="form-group">
+          <div className="login-form-group">
             <label htmlFor="correo">Correo Electrónico</label>
             <input
               type="email"
@@ -85,7 +95,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onError }) => {
             />
           </div>
 
-          <div className="form-group">
+          <div className="login-form-group">
             <label htmlFor="password">Contraseña</label>
             <input
               type="password"
@@ -97,6 +107,13 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onError }) => {
               disabled={isLoading}
               required
             />
+            <button
+              type="button"
+              onClick={() => window.location.href = '/recuperar-password'}
+              className="forgot-password-link"
+            >
+              ¿Olvidaste tu contraseña?
+            </button>
           </div>
 
           {error && (
@@ -121,25 +138,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onError }) => {
             )}
           </button>
         </form>
-
-        {USE_MOCK_API && (
-          <div className="demo-users">
-            <h4>👤 Usuarios de Prueba:</h4>
-            <div className="demo-user">
-              <strong>Administrador:</strong> admin@test.com / admin123
-            </div>
-            <div className="demo-user">
-              <strong>Empleado:</strong> empleado@test.com / emp123
-            </div>
-            <div className="demo-user">
-              <strong>Usuario:</strong> usuario@test.com / 123456
-            </div>
-          </div>
-        )}
-
-        <div className="login-footer">
-          <p>¿Problemas para acceder? Contacta al administrador</p>
-        </div>
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Edit, Trash2, Monitor, User, RotateCcw } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Monitor, User, RotateCcw, X } from 'lucide-react';
 import {
   VentanillaAPI,
   type VentanillaDTO,
@@ -7,18 +7,332 @@ import {
   type ActualizarVentanillaInput,
 } from '../../services/ventanilla.service';
 import { AsignacionVentanillaAPI } from '../../services/asignacion-ventanilla.service';
-// CSS imports have been removed
 
-const VentanillaCrud = () => {
+// --- Utilidades UI --- //
+type Toast = { type: 'success' | 'error' | 'info'; message: string } | null;
+type ConfirmState = {
+  open: boolean;
+  title: string;
+  description?: string;
+  confirmText?: string;
+  cancelText?: string;
+  onConfirm?: () => Promise<void> | void;
+};
+
+type DeleteConfirmState = {
+  open: boolean;
+  ventanillaId: number | null;
+  ventanillaNombre: string;
+};
+
+const PrimaryButton: React.FC<
+  React.ButtonHTMLAttributes<HTMLButtonElement> & { full?: boolean }
+> = ({ children, full, style, ...props }) => (
+  <button
+    {...props}
+    className={`btn btn-primary${props.className ? ' ' + props.className : ''}`}
+    style={{
+      padding: '12px 28px',
+      fontWeight: 600,
+      borderRadius: '10px',
+      background: 'linear-gradient(135deg, var(--primary), var(--primary-600))',
+      border: 'none',
+      color: 'white',
+      boxShadow: '0 4px 12px rgba(59, 130, 246, 0.30)',
+      transition: 'transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease',
+      width: full ? '100%' : undefined,
+      ...style,
+    }}
+    onMouseEnter={(e) => {
+      const t = e.currentTarget;
+      t.style.transform = 'translateY(-1px)';
+      t.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.40)';
+    }}
+    onMouseLeave={(e) => {
+      const t = e.currentTarget;
+      t.style.transform = 'translateY(0)';
+      t.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.30)';
+    }}
+  >
+    {children}
+  </button>
+);
+
+const SecondaryButton: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement>> = ({
+  children,
+  style,
+  ...props
+}) => (
+  <button
+    {...props}
+    className={`btn${props.className ? ' ' + props.className : ''}`}
+    style={{
+      padding: '12px 20px',
+      fontWeight: 600,
+      borderRadius: '10px',
+      background: 'var(--surface)',
+      color: 'var(--text)',
+      border: '1px solid var(--border)',
+      transition: 'background 0.15s ease, transform 0.15s ease',
+      ...style,
+    }}
+    onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
+    onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+  >
+    {children}
+  </button>
+);
+
+const IconBtn: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement>> = ({ style, ...props }) => (
+  <button
+    {...props}
+    className={`icon-btn${props.className ? ' ' + props.className : ''}`}
+    style={{
+      width: 34,
+      height: 34,
+      borderRadius: 8,
+      border: '1px solid var(--border)',
+      background: 'var(--surface)',
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      transition: 'transform 0.1s ease, background 0.1s ease',
+      ...style,
+    }}
+    onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
+    onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+    aria-label={props.title}
+  />
+);
+
+// --- Toast --- //
+const ToastBar: React.FC<{ toast: Toast; onClose: () => void }> = ({ toast, onClose }) => {
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(onClose, 2800);
+    return () => clearTimeout(t);
+  }, [toast, onClose]);
+
+  if (!toast) return null;
+  const bg =
+    toast.type === 'success'
+      ? 'rgba(16,185,129,0.15)'
+      : toast.type === 'error'
+      ? 'rgba(239,68,68,0.15)'
+      : 'rgba(59,130,246,0.15)';
+
+  const border =
+    toast.type === 'success'
+      ? '1px solid rgba(16,185,129,0.35)'
+      : toast.type === 'error'
+      ? '1px solid rgba(239,68,68,0.35)'
+      : '1px solid rgba(59,130,246,0.35)';
+
+  return (
+    <div
+      role="status"
+      style={{
+        position: 'fixed',
+        top: 16,
+        right: 16,
+        zIndex: 10000,
+        background: bg,
+        color: 'var(--text)',
+        padding: '12px 14px',
+        borderRadius: 10,
+        border,
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+      }}
+    >
+      <span style={{ fontWeight: 600 }}>
+        {toast.type === 'success' ? 'Éxito' : toast.type === 'error' ? 'Error' : 'Info'}
+      </span>
+      <span style={{ opacity: 0.9 }}>{toast.message}</span>
+      <IconBtn onClick={onClose} title="Cerrar" style={{ marginLeft: 6 }}>
+        <X size={14} />
+      </IconBtn>
+    </div>
+  );
+};
+
+// --- Confirm Dialog --- //
+const ConfirmDialog: React.FC<{
+  state: ConfirmState;
+  setState: (s: ConfirmState) => void;
+}> = ({ state, setState }) => {
+  if (!state.open) return null;
+  const close = () => setState({ ...state, open: false });
+
+  const handleConfirm = async () => {
+    try {
+      await state.onConfirm?.();
+    } finally {
+      close();
+    }
+  };
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(10, 35, 66, 0.7)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9998,
+        backdropFilter: 'blur(4px)',
+      }}
+      onClick={close}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#ffffff',
+          borderRadius: '16px',
+          boxShadow: '0 25px 60px rgba(10, 35, 66, 0.3)',
+          border: '2px solid #E9C46A',
+          width: '100%',
+          maxWidth: '480px',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Header */}
+        <div style={{
+          background: 'linear-gradient(135deg, #0A2342 0%, #132743 100%)',
+          padding: '20px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderBottom: '3px solid #E9C46A',
+        }}>
+          <h2 style={{
+            margin: 0,
+            color: '#E9C46A',
+            fontSize: '18px',
+            fontWeight: 700,
+            fontFamily: "'Times New Roman', Georgia, serif",
+          }}>
+            {state.title}
+          </h2>
+          <button
+            onClick={close}
+            aria-label="Cerrar"
+            style={{
+              background: 'rgba(255,255,255,0.1)',
+              border: 'none',
+              borderRadius: '8px',
+              width: '32px',
+              height: '32px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#ffffff',
+              fontSize: '18px',
+              transition: 'background 0.2s',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.3)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Content */}
+        <div style={{ padding: '24px' }}>
+          {state.description && (
+            <p style={{
+              margin: 0,
+              color: '#475569',
+              fontSize: '15px',
+              lineHeight: 1.6,
+              whiteSpace: 'pre-line',
+            }}>
+              {state.description}
+            </p>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          padding: '16px 24px',
+          background: '#f8fafc',
+          borderTop: '1px solid #e2e8f0',
+          display: 'flex',
+          justifyContent: 'flex-end',
+          gap: '12px',
+        }}>
+          <button
+            onClick={close}
+            style={{
+              padding: '12px 24px',
+              fontSize: '14px',
+              fontWeight: 600,
+              borderRadius: '10px',
+              background: '#ffffff',
+              border: '2px solid #e2e8f0',
+              color: '#64748b',
+              cursor: 'pointer',
+              fontFamily: "'Times New Roman', Georgia, serif",
+              transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = '#cbd5e1';
+              e.currentTarget.style.background = '#f8fafc';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = '#e2e8f0';
+              e.currentTarget.style.background = '#ffffff';
+            }}
+          >
+            {state.cancelText ?? 'Cancelar'}
+          </button>
+          <button
+            onClick={handleConfirm}
+            style={{
+              padding: '12px 24px',
+              fontSize: '14px',
+              fontWeight: 600,
+              borderRadius: '10px',
+              background: '#E9C46A',
+              border: '2px solid #E9C46A',
+              color: '#0A2342',
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(233, 196, 106, 0.35)',
+              fontFamily: "'Times New Roman', Georgia, serif",
+              transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 6px 20px rgba(233, 196, 106, 0.45)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(233, 196, 106, 0.35)';
+            }}
+          >
+            {state.confirmText ?? 'Confirmar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- Componente principal --- //
+const VentanillaCrud: React.FC = () => {
   const [ventanillas, setVentanillas] = useState<VentanillaDTO[]>([]);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [showAssignModal, setShowAssignModal] = useState(false);
-  const [selectedVentanilla, setSelectedVentanilla] = useState<VentanillaDTO | null>(null);
-  const [empleados, setEmpleados] = useState<any[]>([]);
-  const [selectedEmpleado, setSelectedEmpleado] = useState<number | ''>('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [showInactive, setShowInactive] = useState(false); // Filtro para ventanillas inactivas
+  const [showInactive, setShowInactive] = useState(false);
   const [formData, setFormData] = useState<CrearVentanillaInput | ActualizarVentanillaInput>({
     nombre: '',
     activa: true,
@@ -26,36 +340,26 @@ const VentanillaCrud = () => {
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [editingId, setEditingId] = useState<number | null>(null);
 
+  // UI feedback
+  const [toast, setToast] = useState<Toast>(null);
+  const [confirm, setConfirm] = useState<ConfirmState>({ open: false, title: '' });
+  const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState>({
+    open: false,
+    ventanillaId: null,
+    ventanillaNombre: '',
+  });
+
   useEffect(() => {
     fetchData();
-    fetchEmpleados();
   }, []);
-
-  const fetchEmpleados = async () => {
-    try {
-      // Aquí deberías usar tu API de empleados
-      // const empleadosData = await EmpleadoAPI.listar();
-      // setEmpleados(empleadosData);
-      
-      // Por ahora, datos simulados
-      setEmpleados([
-        { id: 1, nombre: 'Juan Pérez' },
-        { id: 2, nombre: 'María García' },
-        { id: 3, nombre: 'Carlos López' },
-        { id: 4, nombre: 'Ana Martínez' }
-      ]);
-    } catch (error) {
-      console.error('Error cargando empleados:', error);
-    }
-  };
 
   const fetchData = async () => {
     setLoading(true);
     try {
       const ventanillasData = await VentanillaAPI.listar();
       setVentanillas(ventanillasData);
-    } catch (error) {
-      console.error('Error cargando ventanillas:', error);
+    } catch {
+      setToast({ type: 'error', message: 'No se pudieron cargar las ventanillas.' });
     } finally {
       setLoading(false);
     }
@@ -66,84 +370,71 @@ const VentanillaCrud = () => {
     try {
       if (isEditing && editingId) {
         await VentanillaAPI.actualizar(editingId, formData as ActualizarVentanillaInput);
+        setToast({ type: 'success', message: 'Ventanilla actualizada correctamente.' });
       } else {
         await VentanillaAPI.crear(formData as CrearVentanillaInput);
+        setToast({ type: 'success', message: 'Ventanilla creada correctamente.' });
       }
       await fetchData();
       resetForm();
-    } catch (error) {
-      console.error('Error guardando ventanilla:', error);
+    } catch {
+      setToast({ type: 'error', message: 'Error al guardar la ventanilla.' });
     }
   };
 
   const handleEdit = (ventanilla: VentanillaDTO) => {
-    setFormData({
-      nombre: ventanilla.nombre,
-      activa: !!ventanilla.activa,
-    });
+    setFormData({ nombre: ventanilla.nombre, activa: !!ventanilla.activa });
     setIsEditing(true);
     setEditingId(ventanilla.id);
     setShowModal(true);
   };
 
   const handleDelete = async (id: number) => {
-    console.log('[Ventanilla] Intentando desactivar ventanilla ID:', id);
-    
     try {
-      // Verificamos si la ventanilla tiene asignaciones ACTIVAS
-      console.log('[Ventanilla] 🔍 Verificando asignaciones activas antes de desactivar...');
       const { tiene, cantidad, activas } = await AsignacionVentanillaAPI.tieneAsignaciones(id);
-      
-      // Solo bloquear si hay asignaciones ACTIVAS (sin fechaFin)
+
       if (activas > 0) {
-        const mensaje = `❌ No se puede desactivar la ventanilla porque tiene ${activas} asignaciones activas.\n\nPrimero debe cerrar todas las asignaciones activas.`;
-        
-        console.log('[Ventanilla] ❌ Desactivación bloqueada por asignaciones activas:', { tiene, cantidad, activas });
-        alert(mensaje);
-        return;
-      }
-      
-      // Encontrar la ventanilla actual para obtener su información
-      const ventanillaActual = ventanillas.find(v => v.id === id);
+  const ventanillaActual = ventanillas.find((v) => v.id === id);
+
+  setConfirm({
+    open: true,
+    title: 'No se puede eliminar la ventanilla',
+    description: `La ventanilla "${ventanillaActual?.nombre}" tiene ${activas} asignación(es) activa(s).\n\nDebe liberar o reasignar al empleado antes de poder desactivarla.`,
+    confirmText: 'Entendido',
+    onConfirm: () => {},
+  });
+
+  return;
+}
+
+
+      const ventanillaActual = ventanillas.find((v) => v.id === id);
       if (!ventanillaActual) {
-        alert('❌ No se encontró la ventanilla especificada');
+        setToast({ type: 'error', message: 'Ventanilla no encontrada.' });
         return;
       }
-      
-      const mensajeConfirmacion = cantidad > 0 
-        ? `¿Está seguro de desactivar la ventanilla "${ventanillaActual.nombre}"?\n\nTiene ${cantidad} asignaciones históricas pero no se eliminarán.\nLa ventanilla se marcará como inactiva y se podrá reactivar posteriormente.`
-        : `¿Está seguro de desactivar la ventanilla "${ventanillaActual.nombre}"?\n\nSe marcará como inactiva y se podrá reactivar posteriormente.`;
-      
-      console.log('[Ventanilla] ✅ Ventanilla lista para desactivación:', { activas, cantidad, nombre: ventanillaActual.nombre });
-      
-      if (window.confirm(mensajeConfirmacion)) {
-        console.log('[Ventanilla] Usuario confirmó desactivación, enviando petición...');
-        
-        // Usar eliminación lógica: cambiar activa a false
-        const actualizacion: ActualizarVentanillaInput = {
-          nombre: ventanillaActual.nombre,
-          activa: false // ❌ DESACTIVAR en lugar de eliminar
-        };
-        
-        await VentanillaAPI.actualizar(id, actualizacion);
-        console.log('[Ventanilla] ✅ Ventanilla desactivada exitosamente');
-        console.log('[Ventanilla] 🔄 Recargando datos...');
-        await fetchData();
-        console.log('[Ventanilla] ✅ Datos actualizados');
-        alert(`✅ Ventanilla "${ventanillaActual.nombre}" desactivada correctamente`);
-      } else {
-        console.log('[Ventanilla] Usuario canceló la desactivación');
-      }
-    } catch (error: any) {
-      console.error('[Ventanilla] ❌ Error en proceso de desactivación:', error);
-      console.error('[Ventanilla] Error completo:', {
-        message: error?.message,
-        status: error?.status,
-        detail: error?.detail,
-        stack: error?.stack
+
+      setConfirm({
+        open: true,
+        title: `Desactivar "${ventanillaActual.nombre}"`,
+        description:
+          cantidad > 0 && tiene
+            ? `Tiene ${cantidad} asignacion(es) histórica(s); no se eliminarán.\nLa ventanilla quedará como inactiva y podrá reactivarse.`
+            : `La ventanilla quedará como inactiva y podrá reactivarse posteriormente.`,
+        confirmText: 'Desactivar',
+        cancelText: 'Cancelar',
+        onConfirm: async () => {
+          const actualizacion: ActualizarVentanillaInput = {
+            nombre: ventanillaActual.nombre,
+            activa: false,
+          };
+          await VentanillaAPI.actualizar(id, actualizacion);
+          await fetchData();
+          setToast({ type: 'success', message: `Ventanilla "${ventanillaActual.nombre}" desactivada.` });
+        },
       });
-      
-      alert(`❌ Error al desactivar ventanilla: ${error?.message || 'Error desconocido'}`);
+    } catch {
+      setToast({ type: 'error', message: 'Error al preparar la desactivación.' });
     }
   };
 
@@ -151,8 +442,12 @@ const VentanillaCrud = () => {
     try {
       await VentanillaAPI.actualizar(v.id, { nombre: v.nombre, activa: !v.activa });
       await fetchData();
-    } catch (error) {
-      console.error('Error cambiando estado:', error);
+      setToast({
+        type: 'success',
+        message: `Ventanilla "${v.nombre}" ${!v.activa ? 'activada' : 'desactivada'}.`,
+      });
+    } catch {
+      setToast({ type: 'error', message: 'No se pudo cambiar el estado.' });
     }
   };
 
@@ -163,83 +458,136 @@ const VentanillaCrud = () => {
     setShowModal(false);
   };
 
-  const handleReactivate = async (id: number) => {
-    console.log('[Ventanilla] Intentando reactivar ventanilla ID:', id);
-    
+  // Funciones para modal de eliminación permanente
+  const openDeleteConfirm = (ventanilla: VentanillaDTO) => {
+    setDeleteConfirm({
+      open: true,
+      ventanillaId: ventanilla.id,
+      ventanillaNombre: ventanilla.nombre,
+    });
+  };
+
+  const closeDeleteConfirm = () => {
+    setDeleteConfirm({ open: false, ventanillaId: null, ventanillaNombre: '' });
+  };
+
+  const handleDeletePermanent = async () => {
+    if (!deleteConfirm.ventanillaId) return;
+
     try {
-      const ventanillaActual = ventanillas.find(v => v.id === id);
-      if (!ventanillaActual) {
-        alert('❌ No se encontró la ventanilla especificada');
-        return;
-      }
-      
-      if (window.confirm(`¿Está seguro de reactivar la ventanilla "${ventanillaActual.nombre}"?`)) {
-        console.log('[Ventanilla] Usuario confirmó reactivación, enviando petición...');
-        
-        const actualizacion: ActualizarVentanillaInput = {
-          nombre: ventanillaActual.nombre,
-          activa: true // ✅ REACTIVAR
-        };
-        
-        await VentanillaAPI.actualizar(id, actualizacion);
-        console.log('[Ventanilla] ✅ Ventanilla reactivada exitosamente');
-        await fetchData();
-        alert(`✅ Ventanilla "${ventanillaActual.nombre}" reactivada correctamente`);
-      }
+      await VentanillaAPI.eliminar(deleteConfirm.ventanillaId);
+      setToast({ type: 'success', message: `Ventanilla "${deleteConfirm.ventanillaNombre}" eliminada permanentemente.` });
+      await fetchData();
     } catch (error: any) {
-      console.error('[Ventanilla] ❌ Error reactivando ventanilla:', error);
-      alert(`❌ Error al reactivar ventanilla: ${error?.message || 'Error desconocido'}`);
+      setToast({ type: 'error', message: error.message || 'Error al eliminar la ventanilla.' });
+    } finally {
+      closeDeleteConfirm();
     }
   };
 
-  const handleAssignEmployee = (ventanilla: VentanillaDTO) => {
-    setSelectedVentanilla(ventanilla);
-    setSelectedEmpleado(ventanilla.asignacionActual?.empleado?.id || '');
-    setShowAssignModal(true);
-  };
-
-  const handleAssignSubmit = async () => {
-    if (!selectedVentanilla || selectedEmpleado === '') return;
-    
-    try {
-      // Aquí deberías implementar la llamada a tu API
-      // await VentanillaAPI.asignarEmpleado(selectedVentanilla.id, selectedEmpleado);
-      console.log(`Asignando empleado ${selectedEmpleado} a ventanilla ${selectedVentanilla.id}`);
-      
-      await fetchData(); // Recargar datos
-      setShowAssignModal(false);
-      setSelectedVentanilla(null);
-      setSelectedEmpleado('');
-    } catch (error) {
-      console.error('Error asignando empleado:', error);
+  const handleReactivate = async (id: number) => {
+    const ventanillaActual = ventanillas.find((v) => v.id === id);
+    if (!ventanillaActual) {
+      setToast({ type: 'error', message: 'Ventanilla no encontrada.' });
+      return;
     }
-  };
-
-  const resetAssignModal = () => {
-    setShowAssignModal(false);
-    setSelectedVentanilla(null);
-    setSelectedEmpleado('');
+    setConfirm({
+      open: true,
+      title: `Reactivar "${ventanillaActual.nombre}"`,
+      confirmText: 'Reactivar',
+      cancelText: 'Cancelar',
+      onConfirm: async () => {
+        await VentanillaAPI.actualizar(id, { nombre: ventanillaActual.nombre, activa: true });
+        await fetchData();
+        setToast({ type: 'success', message: `Ventanilla "${ventanillaActual.nombre}" reactivada.` });
+      },
+    });
   };
 
   const filteredVentanillas = ventanillas.filter((v) => {
     const matchesSearch = (v.nombre ?? '').toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = showInactive ? !v.activa : v.activa; // Mostrar inactivas si showInactive=true, sino solo activas
+    const matchesStatus = showInactive ? !v.activa : v.activa;
     return matchesSearch && matchesStatus;
   });
 
   return (
     <div>
-      {/* Header */}
-      <div className="section-header">
+      <ToastBar toast={toast} onClose={() => setToast(null)} />
+      <ConfirmDialog state={confirm} setState={setConfirm} />
+
+      {/* Header - Estilo institucional como Dashboard */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '2.5rem',
+        padding: '2rem',
+        background: 'linear-gradient(135deg, #0A2342 0%, #132743 100%)',
+        borderRadius: '16px',
+        boxShadow: '0 8px 32px rgba(10, 35, 66, 0.25), 0 2px 8px rgba(0, 0, 0, 0.1)',
+        border: '2px solid #E9C46A',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '4px',
+          background: 'linear-gradient(90deg, #E9C46A, #DDB957, #E9C46A)',
+        }} />
         <div>
-          <h3>Ventanillas</h3>
-          <p style={{ color: 'var(--muted)', fontSize: '14px', margin: '4px 0 0 0' }}>
+          <h3 style={{
+            fontSize: '2.75rem',
+            fontWeight: 700,
+            margin: 0,
+            color: '#E9C46A',
+            fontFamily: "'Times New Roman', Georgia, serif",
+            letterSpacing: '0.02em',
+            textShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
+          }}>Ventanillas</h3>
+          <p style={{
+            color: 'rgba(255, 255, 255, 0.85)',
+            fontSize: '1.1rem',
+            margin: '0.5rem 0 0 0',
+            fontFamily: "'Times New Roman', Georgia, serif",
+            fontStyle: 'italic',
+          }}>
             Gestiona las ventanillas de atención al cliente
           </p>
         </div>
-        <div className="actions">
-          <button onClick={() => setShowModal(true)} className="btn btn-primary">
-            <Plus size={16} style={{ marginRight: '8px' }} />
+        <div className="actions" style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={() => setShowModal(true)}
+            style={{
+              padding: '12px 20px',
+              fontSize: 14,
+              fontWeight: 600,
+              borderRadius: '10px',
+              background: '#E9C46A',
+              border: '2px solid #E9C46A',
+              color: '#0A2342',
+              boxShadow: '0 4px 12px rgba(233, 196, 106, 0.35)',
+              transition: 'transform .15s ease, box-shadow .15s ease',
+              fontFamily: "'Times New Roman', Georgia, serif",
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer',
+            }}
+            onMouseEnter={(e) => {
+              const t = e.currentTarget;
+              t.style.transform = 'translateY(-2px)';
+              t.style.boxShadow = '0 8px 24px rgba(233, 196, 106, 0.45)';
+            }}
+            onMouseLeave={(e) => {
+              const t = e.currentTarget;
+              t.style.transform = 'translateY(0)';
+              t.style.boxShadow = '0 4px 12px rgba(233, 196, 106, 0.35)';
+            }}
+          >
+            <Plus size={16} />
             Nueva Ventanilla
           </button>
         </div>
@@ -262,14 +610,14 @@ const VentanillaCrud = () => {
       </div>
 
       {/* Filters */}
-      <div className="crud-section" style={{ marginBottom: '20px' }}>
-        <div className="toolbar">
+      <div className="crud-section" style={{ marginBottom: 20 }}>
+        <div className="toolbar" style={{ gap: 12 }}>
           <div style={{ position: 'relative', flex: 1 }}>
             <Search
               size={16}
               style={{
                 position: 'absolute',
-                left: '12px',
+                left: 12,
                 top: '50%',
                 transform: 'translateY(-50%)',
                 color: 'var(--muted)',
@@ -281,19 +629,45 @@ const VentanillaCrud = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="input"
-              style={{ paddingLeft: '40px' }}
+              style={{ paddingLeft: 40 }}
+              aria-label="Buscar ventanillas"
             />
           </div>
           <button
             onClick={() => setShowInactive(!showInactive)}
-            className="btn-secondary"
-            style={{ 
-              marginLeft: '12px',
-              backgroundColor: showInactive ? 'var(--warning)' : 'var(--success)',
-              color: 'white'
+            style={{
+              padding: '12px 20px',
+              fontSize: 14,
+              fontWeight: 600,
+              borderRadius: '10px',
+              background: showInactive
+                ? 'linear-gradient(135deg, #F4A460 0%, #E8943A 100%)'
+                : 'linear-gradient(135deg, #5FB878 0%, #4A9D6F 100%)',
+              border: 'none',
+              color: 'white',
+              boxShadow: showInactive
+                ? '0 4px 12px rgba(244, 164, 96, 0.35)'
+                : '0 4px 12px rgba(95, 184, 120, 0.35)',
+              transition: 'all 0.2s ease',
+              fontFamily: "'Times New Roman', Georgia, serif",
+              cursor: 'pointer',
+              minWidth: 120,
             }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = showInactive
+                ? '0 6px 20px rgba(244, 164, 96, 0.45)'
+                : '0 6px 20px rgba(95, 184, 120, 0.45)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = showInactive
+                ? '0 4px 12px rgba(244, 164, 96, 0.35)'
+                : '0 4px 12px rgba(95, 184, 120, 0.35)';
+            }}
+            aria-pressed={showInactive}
           >
-            {showInactive ? '👁️ Inactivas' : '✅ Activas'}
+            {showInactive ? 'Inactivas' : 'Activas'}
           </button>
         </div>
       </div>
@@ -304,23 +678,23 @@ const VentanillaCrud = () => {
           <table className="crud-table">
             <thead>
               <tr>
-                <th style={{ width: '60px' }}></th>
+                <th style={{ width: 60 }}></th>
                 <th>Ventanilla</th>
                 <th>Empleado Asignado</th>
                 <th>Estado</th>
-                <th style={{ width: '120px', textAlign: 'center' }}>Acciones</th>
+                <th style={{ width: 140, textAlign: 'center' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} style={{ textAlign: 'center', padding: '40px' }}>
+                  <td colSpan={5} style={{ textAlign: 'center', padding: 40 }}>
                     Cargando ventanillas...
                   </td>
                 </tr>
               ) : filteredVentanillas.length === 0 ? (
                 <tr>
-                  <td colSpan={5} style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)' }}>
+                  <td colSpan={5} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
                     No se encontraron ventanillas
                   </td>
                 </tr>
@@ -330,9 +704,9 @@ const VentanillaCrud = () => {
                     <td>
                       <div
                         style={{
-                          width: '36px',
-                          height: '36px',
-                          borderRadius: '8px',
+                          width: 36,
+                          height: 36,
+                          borderRadius: 8,
                           background: v.activa ? 'var(--primary-50)' : 'var(--border)',
                           display: 'flex',
                           alignItems: 'center',
@@ -346,19 +720,19 @@ const VentanillaCrud = () => {
                     <td>
                       <div>
                         <div style={{ fontWeight: 600 }}>{v.nombre}</div>
-                        <div style={{ fontSize: '12px', color: 'var(--muted)' }}>ID: {v.id}</div>
+                        <div style={{ fontSize: 12, color: 'var(--muted)' }}>ID: {v.id}</div>
                       </div>
                     </td>
                     <td>
                       {v.asignacionActual ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <User size={14} color="var(--primary)" />
-                          <span style={{ fontSize: '13px', fontWeight: 500 }}>
+                          <span style={{ fontSize: 13, fontWeight: 500 }}>
                             {v.asignacionActual.empleado?.nombre}
                           </span>
                         </div>
                       ) : (
-                        <span style={{ color: 'var(--muted)', fontSize: '13px' }}>Sin asignar</span>
+                        <span style={{ color: 'var(--muted)', fontSize: 13 }}>Sin asignar</span>
                       )}
                     </td>
                     <td>
@@ -366,49 +740,46 @@ const VentanillaCrud = () => {
                         onClick={() => toggleActiva(v)}
                         className={`status pill ${v.activa ? 'ok' : 'ko'}`}
                         style={{ cursor: 'pointer', border: 'none' }}
+                        aria-pressed={v.activa}
+                        aria-label={`Cambiar estado de ${v.nombre}`}
                       >
                         {v.activa ? 'Activa' : 'Inactiva'}
                       </button>
                     </td>
                     <td style={{ textAlign: 'center' }}>
-                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                      <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
                         {v.activa ? (
-                          // Ventanilla ACTIVA - botones normales
                           <>
-                            <button 
-                              onClick={() => handleAssignEmployee(v)} 
-                              className="icon-btn" 
-                              title="Asignar Empleado"
-                              style={{ color: 'var(--primary)' }}
-                            >
-                              <User size={14} />
-                            </button>
-                            <button onClick={() => handleEdit(v)} className="icon-btn" title="Editar">
+                            <IconBtn onClick={() => handleEdit(v)} title="Editar">
                               <Edit size={14} />
-                            </button>
-                            <button
+                            </IconBtn>
+                            <IconBtn
                               onClick={() => handleDelete(v.id)}
-                              className="icon-btn"
                               title="Desactivar"
                               style={{ color: 'var(--warning)' }}
                             >
                               <Trash2 size={14} />
-                            </button>
+                            </IconBtn>
                           </>
                         ) : (
-                          // Ventanilla INACTIVA - solo editar y reactivar
                           <>
-                            <button onClick={() => handleEdit(v)} className="icon-btn" title="Editar">
+                            <IconBtn onClick={() => handleEdit(v)} title="Editar">
                               <Edit size={14} />
-                            </button>
-                            <button
+                            </IconBtn>
+                            <IconBtn
                               onClick={() => handleReactivate(v.id)}
-                              className="icon-btn"
                               title="Reactivar"
                               style={{ color: 'var(--success)' }}
                             >
                               <RotateCcw size={14} />
-                            </button>
+                            </IconBtn>
+                            <IconBtn
+                              onClick={() => openDeleteConfirm(v)}
+                              title="Eliminar permanentemente"
+                              style={{ color: '#ef4444' }}
+                            >
+                              <Trash2 size={14} />
+                            </IconBtn>
                           </>
                         )}
                       </div>
@@ -421,10 +792,20 @@ const VentanillaCrud = () => {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Modal Crear/Editar */}
       {showModal && (
         <>
-          <div className="modal-overlay" onClick={resetForm}></div>
+          <div
+            className="modal-overlay"
+            onClick={resetForm}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(10, 35, 66, 0.6)',
+              backdropFilter: 'blur(4px)',
+              zIndex: 9998,
+            }}
+          />
           <div
             style={{
               position: 'fixed',
@@ -432,141 +813,228 @@ const VentanillaCrud = () => {
               left: '50%',
               transform: 'translate(-50%, -50%)',
               zIndex: 9999,
+              width: '90%',
+              maxWidth: '480px',
             }}
           >
-            <div className="modal-content" style={{ position: 'relative', zIndex: 1 }}>
-              <div className="modal-header">
-                <h4 style={{ margin: 0 }}>{isEditing ? 'Editar Ventanilla' : 'Nueva Ventanilla'}</h4>
-                <button
-                  onClick={resetForm}
-                  className="modal-close"
-                >
-                  ×
-                </button>
-              </div>
-              <div className="modal-body">
-                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <label style={{ 
-                      display: 'block', 
-                      fontWeight: 600, 
-                      color: 'var(--text)',
-                      fontSize: '14px',
-                      letterSpacing: '0.01em'
+            <div style={{
+              background: '#ffffff',
+              borderRadius: '20px',
+              boxShadow: '0 25px 60px rgba(10, 35, 66, 0.3)',
+              overflow: 'hidden',
+              border: '2px solid #E9C46A',
+            }}>
+              {/* Header del modal */}
+              <div style={{
+                background: 'linear-gradient(135deg, #0A2342 0%, #132743 100%)',
+                padding: '24px 28px',
+                position: 'relative',
+              }}>
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: '3px',
+                  background: 'linear-gradient(90deg, #E9C46A, #DDB957, #E9C46A)',
+                }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '10px',
+                      background: 'rgba(233, 196, 106, 0.15)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                     }}>
-                      Nombre de la Ventanilla *
+                      <Monitor size={20} color="#E9C46A" />
+                    </div>
+                    <h4 style={{
+                      margin: 0,
+                      fontSize: '1.25rem',
+                      fontWeight: 700,
+                      color: '#E9C46A',
+                      fontFamily: "'Times New Roman', Georgia, serif",
+                    }}>
+                      {isEditing ? 'Editar Ventanilla' : 'Nueva Ventanilla'}
+                    </h4>
+                  </div>
+                  <button
+                    onClick={resetForm}
+                    aria-label="Cerrar"
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      border: 'none',
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '10px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'rgba(255, 255, 255, 0.7)',
+                      fontSize: '20px',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)';
+                      e.currentTarget.style.color = '#EF4444';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+                      e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+
+              {/* Body del modal */}
+              <div style={{ padding: '28px' }}>
+                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{
+                      display: 'block',
+                      fontWeight: 600,
+                      color: '#0A2342',
+                      fontSize: '14px',
+                      fontFamily: "'Times New Roman', Georgia, serif",
+                    }}>
+                      Nombre de la Ventanilla <span style={{ color: '#E9C46A' }}>*</span>
                     </label>
                     <input
                       type="text"
                       value={formData.nombre}
                       onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                      placeholder="Ej: Ventanilla 1, Caja Principal, Atención VIP..."
+                      placeholder="Ej: Ventanilla 1, Caja Principal..."
                       required
-                      className="input"
-                      style={{ 
+                      style={{
                         width: '100%',
                         padding: '14px 16px',
-                        fontSize: '16px',
+                        fontSize: '15px',
                         borderRadius: '12px',
-                        border: '2px solid var(--border)',
+                        border: '2px solid #e2e8f0',
                         transition: 'all 0.2s ease',
-                        backgroundColor: 'var(--surface)'
+                        backgroundColor: '#f8fafc',
+                        color: '#0A2342',
+                        outline: 'none',
+                        boxSizing: 'border-box',
                       }}
-                      onFocus={(e) => (e.target as HTMLInputElement).style.borderColor = 'var(--primary)'}
-                      onBlur={(e) => (e.target as HTMLInputElement).style.borderColor = 'var(--border)'}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = '#E9C46A';
+                        e.currentTarget.style.backgroundColor = '#ffffff';
+                        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(233, 196, 106, 0.15)';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = '#e2e8f0';
+                        e.currentTarget.style.backgroundColor = '#f8fafc';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
                     />
                   </div>
 
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '12px',
-                    padding: '16px 20px',
-                    backgroundColor: 'var(--primary-50)',
-                    borderRadius: '12px',
-                    border: '1px solid var(--primary-100)'
-                  }}>
-                    <div style={{ position: 'relative' }}>
-                      <input
-                        type="checkbox"
-                        id="activa"
-                        checked={!!formData.activa}
-                        onChange={(e) => setFormData({ ...formData, activa: e.target.checked })}
-                        style={{
-                          width: '20px',
-                          height: '20px',
-                          accentColor: 'var(--primary)',
-                          cursor: 'pointer'
-                        }}
-                      />
-                    </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: '16px 20px',
+                      backgroundColor: '#f8fafc',
+                      borderRadius: 12,
+                      border: '2px solid #e2e8f0',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      id="activa"
+                      checked={!!formData.activa}
+                      onChange={(e) => setFormData({ ...formData, activa: e.target.checked })}
+                      style={{
+                        width: 20,
+                        height: 20,
+                        accentColor: '#E9C46A',
+                        cursor: 'pointer',
+                      }}
+                    />
                     <div>
-                      <label 
-                        htmlFor="activa" 
-                        style={{ 
-                          fontWeight: 600, 
-                          color: 'var(--text)',
-                          cursor: 'pointer',
-                          fontSize: '15px'
-                        }}
-                      >
+                      <label htmlFor="activa" style={{
+                        fontWeight: 600,
+                        color: '#0A2342',
+                        fontSize: 15,
+                        cursor: 'pointer',
+                        fontFamily: "'Times New Roman', Georgia, serif",
+                      }}>
                         Ventanilla activa
                       </label>
-                      <div style={{ 
-                        fontSize: '13px', 
-                        color: 'var(--muted)',
-                        marginTop: '2px'
-                      }}>
+                      <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
                         Las ventanillas activas pueden recibir y atender tickets
                       </div>
                     </div>
                   </div>
 
-                  <div style={{ 
-                    display: 'flex', 
-                    justifyContent: 'flex-end', 
-                    gap: '16px', 
-                    paddingTop: '20px',
-                    borderTop: '1px solid var(--border)'
+                  {/* Footer con botones */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    gap: '12px',
+                    paddingTop: '12px',
+                    borderTop: '1px solid #e2e8f0',
+                    marginTop: '8px',
                   }}>
-                    <button 
-                      type="button" 
-                      onClick={resetForm} 
-                      className="btn"
+                    <button
+                      type="button"
+                      onClick={resetForm}
                       style={{
                         padding: '12px 24px',
+                        fontSize: '14px',
                         fontWeight: 600,
                         borderRadius: '10px',
-                        transition: 'all 0.2s ease'
+                        background: '#ffffff',
+                        border: '2px solid #e2e8f0',
+                        color: '#64748b',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        fontFamily: "'Times New Roman', Georgia, serif",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = '#cbd5e1';
+                        e.currentTarget.style.background = '#f8fafc';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = '#e2e8f0';
+                        e.currentTarget.style.background = '#ffffff';
                       }}
                     >
                       Cancelar
                     </button>
-                    <button 
-                      type="submit" 
-                      className="btn btn-primary"
+                    <button
+                      type="submit"
                       style={{
-                        padding: '12px 32px',
+                        padding: '12px 24px',
+                        fontSize: '14px',
                         fontWeight: 600,
                         borderRadius: '10px',
-                        background: 'linear-gradient(135deg, var(--primary), var(--primary-600))',
-                        border: 'none',
-                        color: 'white',
-                        boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
-                        transition: 'all 0.2s ease'
+                        background: '#E9C46A',
+                        border: '2px solid #E9C46A',
+                        color: '#0A2342',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 12px rgba(233, 196, 106, 0.35)',
+                        transition: 'all 0.2s ease',
+                        fontFamily: "'Times New Roman', Georgia, serif",
                       }}
                       onMouseEnter={(e) => {
-                        const target = e.target as HTMLButtonElement;
-                        target.style.transform = 'translateY(-1px)';
-                        target.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.4)';
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.boxShadow = '0 6px 20px rgba(233, 196, 106, 0.45)';
                       }}
                       onMouseLeave={(e) => {
-                        const target = e.target as HTMLButtonElement;
-                        target.style.transform = 'translateY(0)';
-                        target.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.3)';
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(233, 196, 106, 0.35)';
                       }}
                     >
-                      {isEditing ? '✓ Actualizar' : '+ Crear Ventanilla'}
+                      {isEditing ? 'Actualizar' : 'Crear Ventanilla'}
                     </button>
                   </div>
                 </form>
@@ -576,137 +1044,186 @@ const VentanillaCrud = () => {
         </>
       )}
 
-      {/* Modal Asignar Empleado */}
-      {showAssignModal && selectedVentanilla && (
-        <>
-          <div className="modal-overlay" onClick={resetAssignModal}></div>
+      {/* Modal de Confirmación de Eliminación Permanente */}
+      {deleteConfirm.open && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(10, 35, 66, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            backdropFilter: 'blur(4px)',
+          }}
+          onClick={closeDeleteConfirm}
+        >
           <div
+            onClick={(e) => e.stopPropagation()}
             style={{
-              position: 'fixed',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              zIndex: 9999,
+              background: '#ffffff',
+              borderRadius: '16px',
+              boxShadow: '0 25px 60px rgba(10, 35, 66, 0.3)',
+              border: '2px solid #dc2626',
+              width: '100%',
+              maxWidth: '480px',
+              overflow: 'hidden',
             }}
           >
-            <div className="modal-content" style={{ position: 'relative', zIndex: 1 }}>
-              <div className="modal-header">
-                <h4 style={{ margin: 0 }}>Asignar Empleado a {selectedVentanilla.nombre}</h4>
-                <button
-                  onClick={resetAssignModal}
-                  className="modal-close"
-                >
-                  ×
-                </button>
-              </div>
-              <div className="modal-body">
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                  <div style={{
-                    padding: '16px',
-                    backgroundColor: 'var(--primary-50)',
-                    borderRadius: '12px',
-                    border: '1px solid var(--primary-100)',
-                    textAlign: 'center'
-                  }}>
-                    <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--primary)', marginBottom: '4px' }}>
-                      🪟 {selectedVentanilla.nombre}
-                    </div>
-                    <div style={{ fontSize: '14px', color: 'var(--muted)' }}>
-                      Selecciona el empleado que atenderá en esta ventanilla
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <label style={{ 
-                      display: 'block', 
-                      fontWeight: 600, 
-                      color: 'var(--text)',
-                      fontSize: '14px',
-                      letterSpacing: '0.01em'
-                    }}>
-                      👤 Empleado Asignado
-                    </label>
-                    <select
-                      value={selectedEmpleado}
-                      onChange={(e) => setSelectedEmpleado(e.target.value ? Number(e.target.value) : '')}
-                      className="input"
-                      style={{ 
-                        width: '100%',
-                        padding: '14px 16px',
-                        fontSize: '16px',
-                        borderRadius: '12px',
-                        border: '2px solid var(--border)',
-                        transition: 'all 0.2s ease',
-                        backgroundColor: 'var(--surface)',
-                        cursor: 'pointer'
-                      }}
-                      onFocus={(e) => (e.target as HTMLSelectElement).style.borderColor = 'var(--primary)'}
-                      onBlur={(e) => (e.target as HTMLSelectElement).style.borderColor = 'var(--border)'}
-                    >
-                      <option value="">Sin empleado asignado</option>
-                      {empleados.map((emp) => (
-                        <option key={emp.id} value={emp.id}>
-                          {emp.nombre}
-                        </option>
-                      ))}
-                    </select>
-                    <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '4px' }}>
-                      💡 El empleado seleccionado será responsable de atender los tickets en esta ventanilla
-                    </div>
-                  </div>
-
-                  <div style={{ 
-                    display: 'flex', 
-                    justifyContent: 'flex-end', 
-                    gap: '16px', 
-                    paddingTop: '20px',
-                    borderTop: '1px solid var(--border)'
-                  }}>
-                    <button 
-                      type="button" 
-                      onClick={resetAssignModal} 
-                      className="btn"
-                      style={{
-                        padding: '12px 24px',
-                        fontWeight: 600,
-                        borderRadius: '10px',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      Cancelar
-                    </button>
-                    <button 
-                      onClick={handleAssignSubmit} 
-                      className="btn btn-primary"
-                      style={{
-                        padding: '12px 32px',
-                        fontWeight: 600,
-                        borderRadius: '10px',
-                        background: 'linear-gradient(135deg, var(--primary), var(--primary-600))',
-                        border: 'none',
-                        color: 'white',
-                        boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
-                        transition: 'all 0.2s ease'
-                      }}
-                      onMouseEnter={(e) => {
-                        const target = e.target as HTMLButtonElement;
-                        target.style.transform = 'translateY(-1px)';
-                        target.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.4)';
-                      }}
-                      onMouseLeave={(e) => {
-                        const target = e.target as HTMLButtonElement;
-                        target.style.transform = 'translateY(0)';
-                        target.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.3)';
-                      }}
-                    >
-                      👤 Asignar Empleado
-                    </button>
-                  </div>
+            {/* Header */}
+            <div style={{
+              background: 'linear-gradient(135deg, #0A2342 0%, #132743 100%)',
+              padding: '20px 24px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              borderBottom: '3px solid #dc2626',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '10px',
+                  background: 'rgba(220, 38, 38, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  <Trash2 size={20} color="#dc2626" />
                 </div>
+                <h2 style={{
+                  margin: 0,
+                  color: '#E9C46A',
+                  fontSize: '18px',
+                  fontWeight: 700,
+                  fontFamily: "'Times New Roman', Georgia, serif",
+                }}>
+                  Eliminar Ventanilla Permanentemente
+                </h2>
+              </div>
+              <button
+                onClick={closeDeleteConfirm}
+                aria-label="Cerrar"
+                style={{
+                  background: 'rgba(255,255,255,0.1)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  width: '32px',
+                  height: '32px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ffffff',
+                  fontSize: '18px',
+                  transition: 'background 0.2s',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.3)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Content */}
+            <div style={{ padding: '24px' }}>
+              <p style={{
+                margin: '0 0 16px 0',
+                color: '#475569',
+                fontSize: '15px',
+                lineHeight: 1.6,
+              }}>
+                ¿Está seguro que desea eliminar permanentemente la ventanilla{' '}
+                <strong style={{ color: '#0A2342' }}>"{deleteConfirm.ventanillaNombre}"</strong>?
+              </p>
+              <div style={{
+                background: 'rgba(220, 38, 38, 0.08)',
+                border: '1px solid rgba(220, 38, 38, 0.2)',
+                borderRadius: '10px',
+                padding: '14px 16px',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '12px',
+              }}>
+                <Trash2 size={18} color="#dc2626" style={{ flexShrink: 0, marginTop: '2px' }} />
+                <p style={{
+                  margin: 0,
+                  color: '#991b1b',
+                  fontSize: '14px',
+                  lineHeight: 1.5,
+                }}>
+                  <strong>Advertencia:</strong> Esta acción es irreversible. La ventanilla y todos sus datos asociados serán eliminados permanentemente del sistema.
+                </p>
               </div>
             </div>
+
+            {/* Footer */}
+            <div style={{
+              padding: '16px 24px',
+              background: '#f8fafc',
+              borderTop: '1px solid #e2e8f0',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '12px',
+            }}>
+              <button
+                onClick={closeDeleteConfirm}
+                style={{
+                  padding: '12px 24px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  borderRadius: '10px',
+                  background: '#ffffff',
+                  border: '2px solid #e2e8f0',
+                  color: '#64748b',
+                  cursor: 'pointer',
+                  fontFamily: "'Times New Roman', Georgia, serif",
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = '#cbd5e1';
+                  e.currentTarget.style.background = '#f8fafc';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = '#e2e8f0';
+                  e.currentTarget.style.background = '#ffffff';
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeletePermanent}
+                style={{
+                  padding: '12px 24px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  borderRadius: '10px',
+                  background: '#dc2626',
+                  border: '2px solid #dc2626',
+                  color: '#ffffff',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(220, 38, 38, 0.35)',
+                  fontFamily: "'Times New Roman', Georgia, serif",
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(220, 38, 38, 0.45)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(220, 38, 38, 0.35)';
+                }}
+              >
+                Eliminar Permanentemente
+              </button>
+            </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

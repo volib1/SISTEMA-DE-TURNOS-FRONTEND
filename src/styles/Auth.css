@@ -1,0 +1,207 @@
+/* Auth Component - Scoped Styles
+   Usa variables y utilidades de shared.css */
+
+/* Reset para auth - usando position fixed para cubrir toda la pantalla */
+.loading-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0A2342 0%, #132743 50%, #1a3a5c 100%);
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  z-index: 9999;
+}
+
+.loading-container .spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-top: 4px solid #E9C46A;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.loading-container p {
+  color: white;
+  font-size: var(--fs-md);
+  margin: 0;
+  font-weight: 500;
+}
+
+.unauthorized-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0A2342 0%, #132743 50%, #1a3a5c 100%);
+  padding: 16px;
+  margin: 0;
+  box-sizing: border-box;
+  z-index: 9999;
+}
+
+.unauthorized-message {
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(20px);
+  border-radius: 24px;
+  padding: 40px 32px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  text-align: center;
+  width: calc(100% - 32px);
+  max-width: 420px;
+  border: none;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.unauthorized-message::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: linear-gradient(90deg, #E9C46A, #DDB957);
+}
+
+.unauthorized-message h2 {
+  color: #0A2342;
+  margin: 0 0 var(--space-4) 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.unauthorized-message h2::before {
+  content: '🔒';
+  font-size: 1.5rem;
+}
+
+.unauthorized-message p {
+  color: #64748b;
+  margin: var(--space-3) 0;
+  line-height: 1.6;
+  font-size: 1rem;
+}
+
+.unauthorized-message strong {
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.unauthorized-message button,
+.unauthorized-message a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 20px;
+  padding: 14px 28px;
+  background: linear-gradient(135deg, #0A2342, #132743);
+  color: white;
+  border: 2px solid #E9C46A;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 16px rgba(10, 35, 66, 0.3);
+}
+
+.unauthorized-message button:hover,
+.unauthorized-message a:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(233, 196, 106, 0.4);
+  background: linear-gradient(135deg, #132743, #1a3a5c);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .unauthorized-container {
+    padding: 12px;
+  }
+  
+  .unauthorized-message {
+    padding: 32px 24px;
+    width: 100%;
+    max-width: none;
+    border-radius: 20px;
+  }
+  
+  .unauthorized-message h2 {
+    font-size: 1.5rem;
+  }
+  
+  .unauthorized-message p {
+    font-size: 0.95rem;
+  }
+  
+  .unauthorized-message button,
+  .unauthorized-message a {
+    width: 100%;
+    padding: 16px 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .unauthorized-container {
+    padding: 10px;
+  }
+  
+  .unauthorized-message {
+    padding: 28px 20px;
+    border-radius: 18px;
+  }
+  
+  .unauthorized-message h2 {
+    font-size: 1.35rem;
+    gap: 8px;
+  }
+  
+  .unauthorized-message h2::before {
+    font-size: 1.25rem;
+  }
+  
+  .unauthorized-message p {
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .unauthorized-message {
+    padding: 24px 16px;
+  }
+  
+  .unauthorized-message h2 {
+    font-size: 1.2rem;
+  }
+  
+  .unauthorized-message p {
+    font-size: 0.85rem;
+  }
+}
+
+/* Animación spin ya está en shared.css */

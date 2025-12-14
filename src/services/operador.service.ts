@@ -35,32 +35,38 @@ export const OperadorAPI = {
       // Filtrar por la ventanilla específica y que estén activos
       const serviciosVentanilla = (Array.isArray(serviciosResponse) ? serviciosResponse : [])
         .filter((vs: any) => {
-          const idVent = Number(vs.IdVentanilla ?? vs.idVentanilla ?? vs.id_ventanilla ?? 0);
+          // El backend devuelve idVentanilla (camelCase)
+          const idVent = Number(vs.idVentanilla ?? 0);
           const activo = vs.activo !== false;
           
           console.log('[OperadorAPI] 🔍 Evaluando servicio:', {
             id: vs.id,
-            idVentanilla_raw: vs.IdVentanilla,
-            id_ventanilla: idVent,
+            idVentanilla: vs.idVentanilla,
+            idServicio: vs.idServicio,
+            ventanilla: vs.ventanilla,
+            servicio: vs.servicio,
+            activo: vs.activo,
+            idVent_parsed: idVent,
             buscando_ventanilla: idVentanilla,
-            activo: activo,
             match: idVent === idVentanilla && activo
           });
           
           return idVent === idVentanilla && activo;
         })
-        .map((vs: any) => Number(vs.IdServicio ?? vs.idServicio ?? vs.id_servicio ?? 0))
+        .map((vs: any) => Number(vs.idServicio ?? 0))
         .filter((id: number) => id > 0);
 
       console.log('[OperadorAPI] ✅ Servicios que atiende esta ventanilla:', serviciosVentanilla);
+      console.log('[OperadorAPI] 📊 IDs de servicios:', serviciosVentanilla);
 
       if (serviciosVentanilla.length === 0) {
-        console.warn('[OperadorAPI] ⚠️ Esta ventanilla no tiene servicios asignados');
+        console.error('[OperadorAPI] ❌ ERROR: La ventanilla', idVentanilla, 'NO tiene servicios asignados');
+        console.error('[OperadorAPI] 📌 SOLUCIÓN: Ve a /admin → Asignar Ventanillas y asigna servicios a esta ventanilla');
         return [];
       }
 
       // Obtener todos los tickets en estado "En Espera" o "Pendiente" (estado ID = 1 o 5)
-      console.log('[OperadorAPI] 🎫 Paso 2: Obteniendo tickets en espera...');
+      console.log('[OperadorAPI] 🎫 Paso 2: Obteniendo TODOS los tickets...');
       const response = await fetch(`${API_TICKET}/Lista`)
         .then(r => handleJSON<any>(r));
 
@@ -76,30 +82,71 @@ export const OperadorAPI = {
       }
 
       // Filtrar solo los tickets de los servicios que atiende esta ventanilla
+      console.log('[OperadorAPI] 🔍 INICIANDO FILTRADO DE TICKETS...');
+      console.log('[OperadorAPI] 🔍 Servicios permitidos para ventanilla', idVentanilla, ':', serviciosVentanilla);
+
       const ticketsFiltrados = (Array.isArray(raw) ? raw : [])
         .filter((d: any) => {
           const estadoId = Number(d.Estado?.id ?? d.estado?.id ?? 0);
-          const estadoNombre = String(d.Estado?.nombre ?? d.estado?.nombre ?? "").toLowerCase();
-          
-          // ✅ Solo tickets en estado "En Espera" (id=1) o "Pendiente" (id=5)
-          // EXCLUIR explícitamente: "Llamando" (id=6), "Atendiendo" (id=3), "Atendido" (id=2), "Ausente" (id=4)
-          const estadosValidos = [1, 5]; // Solo En Espera y Pendiente
-          const enEspera = estadosValidos.includes(estadoId);
-          
+          const estadoNombre = String(d.Estado?.nombre ?? d.estado?.nombre ?? "").toLowerCase().trim();
+
+          // ✅ Filtrar por NOMBRE de estado (más flexible que por ID)
+          // Estados válidos para mostrar en la cola de espera
+          const nombresEstadosValidos = ['pendiente', 'en espera', 'espera'];
+          const enEspera = nombresEstadosValidos.some(nombre => estadoNombre.includes(nombre));
+
           // Verificar que sea de un servicio que atiende esta ventanilla
           const idServicio = Number(d.Servicio?.id ?? d.servicio?.id ?? 0);
           const perteneceServicio = serviciosVentanilla.includes(idServicio);
-          
-          // Verificar que NO tenga un turno asignado (campo turno presente)
-          // ✅ Buscar en ambas variaciones: 'Turno' y 'turno'
+
+          // ✅ Verificar turno y asignación a ventanilla
           const turnoField = d.Turno ?? d.turno;
           const tieneTurno = turnoField !== null && turnoField !== undefined;
-          const sinTurno = !tieneTurno;
-          
-          const esValido = enEspera && perteneceServicio && sinTurno;
-          
-          console.log('[OperadorAPI] 🔍 Ticket', d.codigo, '| Estado ID:', estadoId, '| Estado:', estadoNombre, '| Servicio:', idServicio, '| Tiene Turno:', tieneTurno, '| Válido:', esValido);
-          
+
+          // Si tiene turno, obtener la ventanilla asignada
+          const ventanillaTurno = Number(turnoField?.id_ventanilla ?? turnoField?.idVentanilla ?? 0);
+          const horaFin = turnoField?.hora_fin ?? turnoField?.horaFin;
+          const turnoFinalizado = tieneTurno && horaFin !== null && horaFin !== undefined;
+
+          // ✅ LÓGICA CLAVE: El ticket es válido para ESTA ventanilla si:
+          // 1. Está en espera/pendiente
+          // 2. Pertenece a un servicio de esta ventanilla
+          // 3. Y ADEMÁS:
+          //    a) NO tiene turno (ticket sin asignar), O
+          //    b) Tiene turno asignado A ESTA MISMA VENTANILLA (y no finalizado), O
+          //    c) Tiene turno pero ya fue finalizado (puede ser reasignado)
+
+          let esParaEstaVentanilla = false;
+
+          if (!tieneTurno) {
+            // Sin turno = disponible para cualquier ventanilla con el servicio
+            esParaEstaVentanilla = true;
+          } else if (turnoFinalizado) {
+            // Turno finalizado = puede ser reasignado
+            esParaEstaVentanilla = true;
+          } else if (ventanillaTurno === idVentanilla) {
+            // Turno activo asignado a ESTA ventanilla
+            esParaEstaVentanilla = true;
+          } else {
+            // Turno activo asignado a OTRA ventanilla = NO mostrar aquí
+            esParaEstaVentanilla = false;
+          }
+
+          const esValido = enEspera && perteneceServicio && esParaEstaVentanilla;
+
+          console.log('[OperadorAPI] 🔍 Evaluando Ticket:', {
+            codigo: d.codigo,
+            estadoNombre,
+            idServicio,
+            enEspera,
+            perteneceServicio,
+            tieneTurno,
+            ventanillaTurno,
+            turnoFinalizado,
+            esParaEstaVentanilla,
+            '✅ VÁLIDO': esValido
+          });
+
           return esValido;
         })
         .map((d: any) => ({

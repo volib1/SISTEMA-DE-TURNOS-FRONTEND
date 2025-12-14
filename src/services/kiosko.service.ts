@@ -1,7 +1,7 @@
 import { API_ROOT } from "./http";
 
 export type KioskoServicioDTO = { id: number; nombre: string; descripcion?: string | null };
-export type TicketCreadoDTO = { id: number; codigo: string; fechaCreacion: string };
+export type TicketCreadoDTO = { id: number; codigo: string; fechaCreacion: string; ventanillaAsignada?: string | null };
 
 const API = `${API_ROOT}/kiosko`;
 
@@ -134,11 +134,13 @@ export const KioskoAPI = {
       });
       
       console.log(`[KioskoAPI] ✅ Ticket creado exitosamente:`, raw);
-      
+
       return {
         id: Number(raw.id ?? 0),
         codigo: String(raw.codigo ?? ""),
         fechaCreacion: String(raw.fecha_creacion ?? raw.fechaCreacion ?? ""),
+        // ✅ Datos de asignación automática del backend
+        ventanillaAsignada: raw.ventanilla_asignada ?? raw.ventanillaAsignada ?? null,
       };
     } catch (error: any) {
       console.error(`[KioskoAPI] ❌ Error al crear ticket para servicio ${idServicio}:`, {

@@ -183,6 +183,39 @@ export function useOperador({ idVentanilla, idEmpleado, autoRefresh = true, refr
   }, [autoRefresh, refreshInterval, cargarDatos]);
 
   /**
+   * Suscripción a eventos SignalR en tiempo real
+   */
+  useEffect(() => {
+    import('../realtime/turnosHub.client').then(({ createTurnosHubClient }) => {
+      const hubConnection = createTurnosHubClient({
+        onTicketCreado: (data) => {
+          console.log('[useOperador] 🎫 Nuevo ticket creado:', data);
+          // Refrescar lista de tickets pendientes
+          cargarProximosTurnos();
+        },
+        onTurnoLlamado: (data) => {
+          console.log('[useOperador] 🔔 Turno llamado:', data);
+          // Refrescar datos para actualizar el estado
+          cargarDatos();
+        },
+        onTurnoFinalizado: (data) => {
+          console.log('[useOperador] ✅ Turno finalizado:', data);
+          // Refrescar datos
+          cargarDatos();
+        },
+      });
+
+      hubConnection.start().catch((err) => {
+        console.error('[useOperador] ❌ Error conectando a SignalR:', err);
+      });
+
+      return () => {
+        hubConnection.stop();
+      };
+    });
+  }, [cargarDatos, cargarProximosTurnos]);
+
+  /**
    * Carga inicial
    */
   useEffect(() => {

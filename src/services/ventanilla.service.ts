@@ -20,7 +20,7 @@ export type ActualizarVentanillaInput = { nombre: string; activa: boolean };
 const API = `${API_ROOT}/ventanilla`;
 
 function nVentanilla(d: any): VentanillaDTO {
-  console.log('[VentanillaService] 🔍 Parseando ventanilla:', d);
+  console.log('[VentanillaService] 🔍 Parseando ventanilla:', JSON.stringify(d, null, 2));
   
   // Manejar diferentes formatos del campo activa
   let activa = false;
@@ -34,20 +34,25 @@ function nVentanilla(d: any): VentanillaDTO {
   
   console.log('[VentanillaService] ✅ Campo activa procesado:', { original: d.activa || d.Activa || d.ACTIVA, procesado: activa });
   
+  // El backend envía asignacionActual (camelCase), no AsignacionActual (PascalCase)
+  const asignacionRaw = d.asignacionActual || d.AsignacionActual;
+  console.log('[VentanillaService] 📋 AsignacionActual raw:', asignacionRaw);
+  console.log('[VentanillaService] 👤 Empleado en AsignacionActual:', asignacionRaw?.empleado || asignacionRaw?.Empleado);
+  
   return {
     id: Number(d.id ?? 0),
     nombre: String(d.nombre ?? ""),
     activa: activa,
-    serviciosActivos: typeof d.ServiciosActivos === "number" ? d.ServiciosActivos : undefined,
-    turnosHoy: typeof d.TurnosHoy === "number" ? d.TurnosHoy : undefined,
-    asignacionActual: d.AsignacionActual
+    serviciosActivos: typeof d.serviciosActivos === "number" ? d.serviciosActivos : (typeof d.ServiciosActivos === "number" ? d.ServiciosActivos : undefined),
+    turnosHoy: typeof d.turnosHoy === "number" ? d.turnosHoy : (typeof d.TurnosHoy === "number" ? d.TurnosHoy : undefined),
+    asignacionActual: asignacionRaw
       ? {
-          id: Number(d.AsignacionActual.id ?? 0),
+          id: Number(asignacionRaw.id ?? 0),
           empleado: {
-            id: Number(d.AsignacionActual.Empleado?.id ?? 0),
-            nombre: String(d.AsignacionActual.Empleado?.nombre ?? ""),
+            id: Number(asignacionRaw.empleado?.id ?? asignacionRaw.Empleado?.id ?? 0),
+            nombre: String(asignacionRaw.empleado?.nombre ?? asignacionRaw.Empleado?.nombre ?? ""),
           },
-          fechaInicio: String(d.AsignacionActual.fecha_inicio ?? d.AsignacionActual.fechaInicio ?? ""),
+          fechaInicio: String(asignacionRaw.fecha_inicio ?? asignacionRaw.fechaInicio ?? ""),
         }
       : null,
     servicios: Array.isArray(d.Servicios)

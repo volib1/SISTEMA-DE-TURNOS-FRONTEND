@@ -111,11 +111,15 @@ export const OperadorAuthAPI = {
           // No lanzar error, solo advertir
           console.warn('[OperadorAuth] ⚠️ Su asignación de ventanilla ha sido finalizada');
         } else {
+          const ventanillaId = Number(asignacion.id_ventanilla ?? asignacion.idVentanilla ?? asignacion.IdVentanilla ?? 0);
+          const ventanillaNombre = String(asignacion.Ventanilla ?? asignacion.ventanilla ?? `Ventanilla ${ventanillaId}`);
+          
           empleado.ventanilla = {
-            id: Number(asignacion.id_ventanilla ?? asignacion.idVentanilla ?? asignacion.IdVentanilla ?? 0),
-            nombre: String(asignacion.Ventanilla ?? asignacion.ventanilla ?? `Ventanilla ${asignacion.id_ventanilla ?? asignacion.idVentanilla ?? ''}`),
+            id: ventanillaId,
+            nombre: ventanillaNombre,
           };
           console.log('[OperadorAuth] ✅ Ventanilla asignada y activa:', empleado.ventanilla);
+          console.log('[OperadorAuth] 🔍 ID Ventanilla:', ventanillaId, '| Nombre:', ventanillaNombre);
         }
       } else {
         console.warn('[OperadorAuth] ⚠️ Usuario sin ventanilla asignada');
@@ -144,6 +148,59 @@ export const OperadorAuthAPI = {
       } else {
         throw new Error(`Error al iniciar sesión: ${error.message || 'Intente nuevamente'}`);
       }
+    }
+  },
+
+  /**
+   * Obtiene los datos actualizados del usuario (para verificar sesión y refrescar ventanilla)
+   */
+  async getUsuario(userId: number): Promise<EmpleadoOperadorDTO> {
+    console.log('[OperadorAuth] 🔄 Obteniendo datos actualizados del usuario ID:', userId);
+
+    try {
+      const userUrl = `${API_USUARIO}/${userId}`;
+      const userResponse = await fetch(userUrl);
+
+      if (!userResponse.ok) {
+        throw new Error(`Usuario no encontrado: ${userResponse.status}`);
+      }
+
+      const userRaw = await userResponse.json();
+      console.log('[OperadorAuth] ✅ Datos del usuario actualizados:', userRaw);
+
+      const empleado: EmpleadoOperadorDTO = {
+        id: userId,
+        nombre: String(userRaw.nombre ?? ""),
+        correo: String(userRaw.correo ?? ""),
+        rol: String(userRaw.Rol?.nombre ?? userRaw.rol?.nombre ?? ""),
+        ventanilla: null,
+      };
+
+      // Verificar asignación de ventanilla
+      const asignacion = userRaw.AsignacionVentanilla ??
+                        userRaw.asignacionVentanilla ??
+                        userRaw.asignacion_ventanilla ??
+                        userRaw.Asignacion_Ventanilla;
+
+      if (asignacion && asignacion.id_ventanilla) {
+        const fechaFin = asignacion.fecha_fin ?? asignacion.fechaFin ?? asignacion.FechaFin;
+
+        if (fechaFin === null || fechaFin === undefined) {
+          const ventanillaId = Number(asignacion.id_ventanilla ?? asignacion.idVentanilla ?? 0);
+          const ventanillaNombre = String(asignacion.Ventanilla ?? asignacion.ventanilla ?? `Ventanilla ${ventanillaId}`);
+
+          empleado.ventanilla = {
+            id: ventanillaId,
+            nombre: ventanillaNombre,
+          };
+          console.log('[OperadorAuth] ✅ Ventanilla activa:', empleado.ventanilla);
+        }
+      }
+
+      return empleado;
+    } catch (error: any) {
+      console.error('[OperadorAuth] ❌ Error al obtener usuario:', error);
+      throw error;
     }
   },
 };

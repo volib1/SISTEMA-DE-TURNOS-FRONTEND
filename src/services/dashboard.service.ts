@@ -1,3 +1,4 @@
+// import { VentanillaAPI } from "./ventanilla.service";
 import { VentanillaAPI } from "./ventanilla.service";
 import { TicketAPI } from "./ticket.service";
 
@@ -16,6 +17,61 @@ export type RecentItemDTO = {
   fecha: string; // ISO
 };
 
+// -------- Utilidades de fecha (zona America/El_Salvador) --------
+const TZ = "America/El_Salvador";
+
+function getTZDateKey(iso: string | Date, timeZone = TZ): string {
+  const d = typeof iso === "string" ? new Date(iso) : iso;
+  if (isNaN(d.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("es-SV", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+
+  const y = parts.find(p => p.type === "year")?.value ?? "0000";
+  const m = parts.find(p => p.type === "month")?.value ?? "01";
+  const day = parts.find(p => p.type === "day")?.value ?? "01";
+  return `${y}-${m}-${day}`;
+}
+
+function getTodayKey(timeZone = TZ): string {
+  return getTZDateKey(new Date(), timeZone);
+}
+
+function classifyEstado(raw: string | undefined | null): "ESPERA" | "ATENDIDO" | null {
+  const estado = (raw || "").toLowerCase().trim();
+
+  if (
+    !estado ||
+    estado === "generado" ||
+    estado === "pendiente" ||
+    estado === "en espera" ||
+    estado === "esperando" ||
+    estado.includes("espera") ||
+    estado.includes("generado") ||
+    estado.includes("pendiente")
+  ) {
+    return "ESPERA";
+  }
+
+  if (
+    estado === "atendido" ||
+    estado === "completado" ||
+    estado === "finalizado" ||
+    estado === "terminado" ||
+    estado.includes("atendid") ||
+    estado.includes("completad") ||
+    estado.includes("finalizad") ||
+    estado.includes("terminad")
+  ) {
+    return "ATENDIDO";
+  }
+
+  return null;
+}
+
 export async function fetchJSON<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
   const r = await fetch(input, init);
   const ct = r.headers.get("content-type") ?? "";
@@ -29,145 +85,120 @@ export async function fetchJSON<T>(input: RequestInfo, init?: RequestInit): Prom
 }
 
 export const DashboardAPI = {
+  // Resumen del día de HOY (America/El_Salvador)
   async summary(): Promise<SummaryDTO> {
-    console.log('[Dashboard] 📊 Obteniendo resumen del sistema...');
-    
-    // Inicializar con valores por defecto
+    console.log('[Dashboard] 📊 Obteniendo resumen del sistema (solo HOY)...');
+
     let ventanillasActivas = 0;
     let ticketsHoy = 0;
     let enEspera = 0;
     let atendidos = 0;
 
-    // Obtener ventanillas (esto debería funcionar)
+    // Ventanillas activas
     try {
       console.log('[Dashboard] 🏢 Obteniendo ventanillas...');
       const ventanillas = await VentanillaAPI.listar();
-      console.log('[Dashboard] ✅ Ventanillas obtenidas:', ventanillas.length);
-      console.log('[Dashboard] 📋 Ventanillas completas:', ventanillas);
-
-      ventanillasActivas = ventanillas.filter(v => {
-        console.log('[Dashboard] 🔍 Verificando ventanilla:', { id: v.id, nombre: v.nombre, activa: v.activa, tipo: typeof v.activa });
-        return v.activa;
-      }).length;
-      
-      console.log('[Dashboard] 📊 Ventanillas activas encontradas:', ventanillasActivas);
+      ventanillasActivas = ventanillas.filter((v: any) => !!v.activa).length;
+      console.log('[Dashboard] ✅ Ventanillas activas:', ventanillasActivas);
     } catch (error) {
       console.error('[Dashboard] ❌ Error obteniendo ventanillas:', error);
     }
 
-    // Obtener tickets (puede fallar, pero no afecta ventanillas)
+    // Tickets de HOY
     try {
-      console.log('[Dashboard] 🎫 Obteniendo tickets...');
-      const fechaHoy = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-      console.log('[Dashboard] 📅 Consultando tickets para fecha:', fechaHoy);
-      
-      const tickets = await TicketAPI.listar({ fecha: fechaHoy });
-      console.log('[Dashboard] ✅ Tickets obtenidos desde API:', tickets.total);
-      console.log('[Dashboard] 📋 Detalles de tickets:', { 
-        total: tickets.total, 
-        items: tickets.items?.length || 0,
-        fechaConsultada: fechaHoy,
-        estructura: tickets.items?.[0] || 'No hay tickets'
-      });
-      
-      // Mostrar todos los tickets para debug
-      if (tickets.items && tickets.items.length > 0) {
-        console.log('[Dashboard] 📋 Todos los tickets de hoy:');
-        tickets.items.forEach((ticket: any, index: number) => {
-          console.log(`  ${index + 1}. ${ticket.codigo} - Estado: ${ticket.estado?.nombre || 'Sin estado'} - Servicio: ${ticket.servicio?.nombre || 'Sin servicio'}`);
-        });
-      } else {
-        console.log('[Dashboard] 📋 No hay tickets para mostrar hoy');
-      }
-      
-      ticketsHoy = tickets.total; // Solo tickets reales de la API
-      const ticketsArray = tickets.items || [];
-      
-      // Contar tickets por estado (solo de la API)
-      enEspera = ticketsArray.filter((t: any) => {
-        const estado = t.estado?.nombre?.toLowerCase() || '';
-        const esEspera = estado.includes('espera') || 
-                       estado.includes('generado') ||
-                       estado.includes('pendiente') ||
-                       estado.includes('esperando') ||
-                       estado === 'pendiente';
-        if (esEspera) {
-          console.log(`[Dashboard] 🟡 Ticket en espera: ${t.codigo} - Estado: "${t.estado?.nombre}"`);
-        }
-        return esEspera;
-      }).length;
-      
-      atendidos = ticketsArray.filter((t: any) => {
-        const estado = t.estado?.nombre?.toLowerCase() || '';
-        const esAtendido = estado.includes('atendido') ||
-                          estado.includes('completado') ||
-                          estado.includes('finalizado') ||
-                          estado.includes('atención') ||
-                          estado === 'atendido';
-        if (esAtendido) {
-          console.log(`[Dashboard] 🟢 Ticket atendido: ${t.codigo} - Estado: "${t.estado?.nombre}"`);
-        }
-        return esAtendido;
-      }).length;
+      const todayKey = getTodayKey();
+      const fechaHoy = todayKey; // YYYY-MM-DD
+      console.log('[Dashboard] 🎫 Obteniendo tickets de hoy:', fechaHoy);
 
-      console.log('[Dashboard] 🎫 Estadísticas finales (solo API):', { 
-        ticketsHoy, 
-        enEspera, 
-        atendidos,
-        apiTotal: tickets.total 
+      // 1) Intentar con filtro por fecha (si backend lo soporta)
+      let ticketsResp = await TicketAPI.listar({ fecha: fechaHoy, pageSize: 500, page: 1 });
+
+      // 2) Si no hay, traer sin filtro y filtrar localmente
+      if (!ticketsResp?.items || ticketsResp.items.length === 0) {
+        console.log('[Dashboard] 🔄 Fallback sin filtro. Se filtrará en cliente por zona horaria.');
+        ticketsResp = await TicketAPI.listar({ pageSize: 500, page: 1 });
+      }
+
+      const allItems: any[] = ticketsResp.items ?? [];
+      const todayItems = allItems.filter((t: any) => {
+        const fecha = t.fechaCreacion || t.fecha || t.createdAt || t.created_at;
+        const key = fecha ? getTZDateKey(fecha, TZ) : "";
+        return key === todayKey;
       });
-      
-    } catch (error) {
-      console.warn('[Dashboard] ⚠️ Error obteniendo tickets (usando valores por defecto):', error);
-      
-      // Si hay error en la API, mantener valores en 0 (no usar contadores temporales)
-      console.log('[Dashboard] 🚫 Error en API - mostrando solo datos confirmados (0)');
+
+      ticketsHoy = todayItems.length;
+
+      todayItems.forEach((t) => {
+        const tipo = classifyEstado(t?.estado?.nombre);
+        if (tipo === "ESPERA") enEspera++;
+        else if (tipo === "ATENDIDO") atendidos++;
+      });
+
+      console.log('[Dashboard] 📈 HOY =>', { ticketsHoy, enEspera, atendidos });
+
+    } catch (error: any) {
+      console.error('[Dashboard] ❌ Error obteniendo tickets:', error);
+      console.error('[Dashboard] 📄 Detalles del error:', {
+        message: error?.message,
+        detail: error?.detail,
+        stack: error?.stack
+      });
+      // Se mantienen contadores en 0 si falla
     }
 
-    const resumen = {
+    const resumen: SummaryDTO = {
       ticketsHoy,
       enEspera,
       atendidos,
       ventanillasActivas
     };
 
-    console.log('[Dashboard] 📈 Resumen final calculado:', resumen);
+    console.log('[Dashboard] ✅ Resumen final (HOY):', resumen);
     return resumen;
   },
 
+  // Actividad reciente: prioriza HOY; si no hay, devuelve últimos
   async recent(limit = 10): Promise<RecentItemDTO[]> {
-    console.log('[Dashboard] 🕐 Obteniendo actividad reciente...');
-    
+    console.log('[Dashboard] 🕐 Obteniendo actividad reciente (prioriza HOY)...');
+
     try {
-      // Obtener tickets recientes
-      const ticketsResponse = await TicketAPI.listar({ 
-        pageSize: limit,
-        page: 1
-      });
-      
-      const recentItems: RecentItemDTO[] = (ticketsResponse.items || []).map((ticket: any) => ({
+      const todayKey = getTodayKey();
+
+      const ticketsResponse = await TicketAPI.listar({ pageSize: Math.max(50, limit * 2), page: 1 });
+
+      const items: any[] = ticketsResponse.items ?? [];
+      const mapped: RecentItemDTO[] = items.map((ticket: any) => ({
         id: ticket.id,
         codigo: ticket.codigo,
         ventanilla: ticket.turno?.idVentanilla ? `Ventanilla ${ticket.turno.idVentanilla}` : null,
-        estado: ticket.estado?.nombre || 'DESCONOCIDO',
-        fecha: ticket.fechaCreacion
+        estado: ticket.estado?.nombre || 'SIN ESTADO',
+        fecha: ticket.fechaCreacion || ticket.fecha || new Date().toISOString()
       }));
 
-      console.log('[Dashboard] ✅ Actividad reciente obtenida:', recentItems.length, 'items');
-      return recentItems;
-      
-    } catch (error) {
-      console.warn('[Dashboard] ⚠️ Error obteniendo actividad reciente:', error);
-      // Fallback con datos simulados si hay errores
-      return [
-        { 
-          id: 1, 
-          codigo: 'T001', 
-          ventanilla: null, 
-          estado: 'GENERADO', 
-          fecha: new Date().toISOString() 
-        }
-      ];
+      const todayItems = mapped
+        .filter((i) => getTZDateKey(i.fecha, TZ) === todayKey)
+        .sort((a, b) => +new Date(b.fecha) - +new Date(a.fecha))
+        .slice(0, limit);
+
+      if (todayItems.length > 0) {
+        console.log('[Dashboard] ✅ Actividad de HOY:', todayItems.length);
+        return todayItems;
+      }
+
+      const fallback = mapped
+        .sort((a, b) => +new Date(b.fecha) - +new Date(a.fecha))
+        .slice(0, limit);
+
+      console.log('[Dashboard] ⚠️ Sin actividad de hoy; mostrando últimos', fallback.length);
+      return fallback;
+
+    } catch (error: any) {
+      console.error('[Dashboard] ❌ Error obteniendo actividad reciente:', error);
+      console.error('[Dashboard] 📄 Detalles del error:', {
+        message: error?.message,
+        detail: error?.detail
+      });
+      return [];
     }
   },
 };

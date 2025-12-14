@@ -6,33 +6,30 @@ import { DashboardNotificationService } from '../services/dashboard-notification
 const getMockSummary = (): SummaryDTO => {
   const tempTickets = DashboardNotificationService.getTempTicketCount();
   return {
-    ticketsHoy: tempTickets, // Mostrar solo los tickets creados localmente
-    enEspera: tempTickets, // Todos los tickets locales están "en espera"
-    atendidos: 0, // No hay tickets atendidos en modo mock
-    ventanillasActivas: 2 // Mantener las 2 ventanillas que funcionan desde la API real
+    ticketsHoy: tempTickets,
+    enEspera: tempTickets,
+    atendidos: 0,
+    ventanillasActivas: 2
   };
 };
 
 const getMockRecent = (): RecentItemDTO[] => {
   const tempTickets = DashboardNotificationService.getTempTicketCount();
   const recent: RecentItemDTO[] = [];
-  
-  // Generar tickets recientes dinámicos basados en los tickets creados
   for (let i = 0; i < tempTickets; i++) {
     recent.push({
       id: Date.now() + i,
       codigo: `T${(i + 1).toString().padStart(3, '0')}`,
       ventanilla: null,
       estado: 'GENERADO',
-      fecha: new Date(Date.now() - (i * 60000)).toISOString() // Cada ticket 1 minuto antes
+      fecha: new Date(Date.now() - (i * 60000)).toISOString()
     });
   }
-  
   return recent;
 };
 
-// Configuración  
-const USE_MOCK_DATA = false; // Usando datos reales de la base de datos
+// Configuración
+const USE_MOCK_DATA = false;
 
 interface DashboardState {
   summary: SummaryDTO | null;
@@ -68,12 +65,10 @@ export const useDashboard = (autoRefresh = true): UseDashboardReturn => {
       let recent: RecentItemDTO[];
 
       if (USE_MOCK_DATA) {
-        // Simular delay de red
-        await new Promise(resolve => setTimeout(resolve, 500));
-        summary = getMockSummary(); // Usar función dinámica
-        recent = getMockRecent(); // Usar función dinámica
+        await new Promise(resolve => setTimeout(resolve, 300));
+        summary = getMockSummary();
+        recent = getMockRecent();
       } else {
-        // Usar API real
         const [summaryRes, recentRes] = await Promise.all([
           DashboardAPI.summary(),
           DashboardAPI.recent(10)
@@ -94,7 +89,6 @@ export const useDashboard = (autoRefresh = true): UseDashboardReturn => {
     } catch (error: any) {
       console.error('Dashboard error:', error);
       const errorMessage = error?.detail?.error || error?.message || 'Error al cargar datos del dashboard';
-      
       setState(prev => ({
         ...prev,
         loading: false,
@@ -110,29 +104,23 @@ export const useDashboard = (autoRefresh = true): UseDashboardReturn => {
   }, []);
 
   useEffect(() => {
-    // Carga inicial
     loadData(true);
-    
-    // Suscribirse a notificaciones locales del dashboard (fallback)
+
     const unsubscribeFromNotifications = DashboardNotificationService.subscribe(() => {
-      console.log('[Dashboard] � Actualización solicitada via notificación local');
+      console.log('[Dashboard] 🔔 Actualización solicitada via notificación local');
       loadData(false);
     });
-    
-    // Auto-refresh cada 30 segundos
+
     let intervalId: number | undefined;
     if (autoRefresh) {
       intervalId = window.setInterval(() => {
         console.log('[Dashboard] 🔄 Auto-refresh...');
-        loadData(false); // No mostrar loading en auto-refresh
-      }, 30000); // 30 segundos
+        loadData(false);
+      }, 30000);
     }
 
     return () => {
-      if (intervalId) {
-        window.clearInterval(intervalId);
-      }
-      // Limpiar suscripción a notificaciones
+      if (intervalId) window.clearInterval(intervalId);
       unsubscribeFromNotifications();
     };
   }, [loadData, autoRefresh]);

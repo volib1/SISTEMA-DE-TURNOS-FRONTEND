@@ -91,6 +91,7 @@ interface AsignacionActions {
   crearAsignacion: (input: CrearAsignacionInput & { servicios?: number[] }) => Promise<boolean>;
   cerrarAsignacion: (id: number) => Promise<boolean>;
   asignarServicioAVentanilla: (ventanillaId: number, servicioId: number) => Promise<boolean>;
+  modificarServiciosVentanilla: (ventanillaId: number, serviciosAAgregar: number[], serviciosAQuitar: number[]) => Promise<boolean>;
   clearError: () => void;
 }
 
@@ -161,24 +162,55 @@ export const useAsignacionVentanilla = (): UseAsignacionVentanillaReturn => {
 
         console.log('[AsignacionVentanilla] Cargando servicios...');
         let serviciosData: ServicioDTO[];
-        
+
         // Usar directamente el endpoint /Lista que funciona
         serviciosData = await ServicioAPI.listar();
         console.log('[AsignacionVentanilla] Servicios cargados con listar():', serviciosData.length);
-        
+
         console.log('[AsignacionVentanilla] Servicios raw del backend:', serviciosData);
+
+        // Cargar relaciones ventanilla-servicio para mostrar en las tarjetas
+        console.log('[AsignacionVentanilla] Cargando relaciones ventanilla-servicio...');
+        let ventanillaServicios: { idVentanilla: number; idServicio: number; servicio: string; activo: boolean; id: number }[] = [];
+        try {
+          const vsData = await VentanillaServicioAPI.listar();
+          ventanillaServicios = vsData.map(vs => ({
+            id: vs.id,
+            idVentanilla: vs.idVentanilla,
+            idServicio: vs.idServicio,
+            servicio: vs.servicio,
+            activo: vs.activo
+          }));
+          console.log('[AsignacionVentanilla] Relaciones ventanilla-servicio:', ventanillaServicios.length);
+        } catch (e) {
+          console.warn('[AsignacionVentanilla] No se pudieron cargar relaciones ventanilla-servicio:', e);
+        }
 
         // Convertir datos a formatos esperados
         const empleados = usuarios.map(usuarioToEmpleado);
         const servicios = serviciosData.map(servicioToBasico);
-        
+
+        // Asociar servicios a cada ventanilla
+        const ventanillasConServicios = ventanillas.map(v => ({
+          ...v,
+          servicios: ventanillaServicios
+            .filter(vs => vs.idVentanilla === v.id)
+            .map(vs => ({
+              id: vs.id,
+              servicioId: vs.idServicio,
+              servicio: vs.servicio,
+              activo: vs.activo
+            }))
+        }));
+
+        console.log('[AsignacionVentanilla] Ventanillas con servicios asociados:', ventanillasConServicios);
         console.log('[AsignacionVentanilla] Servicios después de transformación:', servicios);
 
         console.log('[AsignacionVentanilla] Datos procesados correctamente');
         setState(prev => ({
           ...prev,
           asignaciones,
-          ventanillas,
+          ventanillas: ventanillasConServicios,
           empleados,
           servicios,
           loading: false
@@ -259,20 +291,47 @@ export const useAsignacionVentanilla = (): UseAsignacionVentanillaReturn => {
         // Si se proporcionaron servicios, crear las asignaciones de servicios
         if (input.servicios && input.servicios.length > 0) {
           console.log(`[AsignacionVentanilla] Asignando ${input.servicios.length} servicio(s) a la ventanilla...`);
-          
+
+          // Primero obtener las relaciones existentes para evitar duplicados
+          let relacionesExistentes: Array<{ idVentanilla: number; idServicio: number; id: number; activo: boolean }> = [];
+          try {
+            const todasRelaciones = await VentanillaServicioAPI.listar();
+            relacionesExistentes = todasRelaciones
+              .filter(r => r.idVentanilla === ventanilla.id)
+              .map(r => ({ idVentanilla: r.idVentanilla, idServicio: r.idServicio, id: r.id, activo: r.activo }));
+            console.log(`[AsignacionVentanilla] Relaciones existentes para ventanilla ${ventanilla.id}:`, relacionesExistentes);
+          } catch (e) {
+            console.warn('[AsignacionVentanilla] No se pudieron cargar relaciones existentes, se intentará crear todas');
+          }
+
           for (const servicioId of input.servicios) {
             try {
-              await VentanillaServicioAPI.crear({
-                idVentanilla: ventanilla.id,
-                idServicio: servicioId
-              });
-              console.log(`[AsignacionVentanilla] ✅ Servicio ${servicioId} asignado a ventanilla ${ventanilla.nombre}`);
+              // Verificar si ya existe la relación
+              const relacionExistente = relacionesExistentes.find(r => r.idServicio === servicioId);
+
+              if (relacionExistente) {
+                // Si existe pero está inactiva, activarla
+                if (!relacionExistente.activo) {
+                  console.log(`[AsignacionVentanilla] Reactivando servicio ${servicioId} en ventanilla ${ventanilla.nombre}`);
+                  await VentanillaServicioAPI.activar(relacionExistente.id, true);
+                  console.log(`[AsignacionVentanilla] ✅ Servicio ${servicioId} reactivado`);
+                } else {
+                  console.log(`[AsignacionVentanilla] ℹ️ Servicio ${servicioId} ya está asignado y activo, omitiendo`);
+                }
+              } else {
+                // Crear nueva relación
+                await VentanillaServicioAPI.crear({
+                  idVentanilla: ventanilla.id,
+                  idServicio: servicioId
+                });
+                console.log(`[AsignacionVentanilla] ✅ Servicio ${servicioId} asignado a ventanilla ${ventanilla.nombre}`);
+              }
             } catch (error: any) {
               console.error(`[AsignacionVentanilla] ⚠️ Error al asignar servicio ${servicioId}:`, error);
               // Continuar con los demás servicios aunque uno falle
             }
           }
-          
+
           console.log('[AsignacionVentanilla] ✅ Servicios asignados exitosamente');
         }
         
@@ -388,6 +447,78 @@ export const useAsignacionVentanilla = (): UseAsignacionVentanillaReturn => {
     }
   }, []);
 
+  const modificarServiciosVentanilla = useCallback(async (
+    ventanillaId: number,
+    serviciosAAgregar: number[],
+    serviciosAQuitar: number[]
+  ): Promise<boolean> => {
+    try {
+      setState(prev => ({ ...prev, procesando: true, error: null }));
+      console.log('[modificarServiciosVentanilla] Iniciando modificación de servicios para ventanilla:', ventanillaId);
+      console.log('[modificarServiciosVentanilla] Servicios a agregar:', serviciosAAgregar);
+      console.log('[modificarServiciosVentanilla] Servicios a quitar:', serviciosAQuitar);
+
+      // Obtener las relaciones existentes para esta ventanilla
+      const todasRelaciones = await VentanillaServicioAPI.listar();
+      const relacionesVentanilla = todasRelaciones.filter(r => r.idVentanilla === ventanillaId);
+      console.log('[modificarServiciosVentanilla] Relaciones existentes:', relacionesVentanilla);
+
+      // Quitar servicios (desactivar o eliminar)
+      for (const servicioId of serviciosAQuitar) {
+        const relacion = relacionesVentanilla.find(r => r.idServicio === servicioId);
+        if (relacion) {
+          try {
+            console.log(`[modificarServiciosVentanilla] Eliminando relación ID ${relacion.id} (servicio ${servicioId})`);
+            await VentanillaServicioAPI.eliminar(relacion.id);
+            console.log(`[modificarServiciosVentanilla] ✅ Servicio ${servicioId} eliminado de ventanilla`);
+          } catch (error) {
+            console.error(`[modificarServiciosVentanilla] ⚠️ Error al eliminar servicio ${servicioId}:`, error);
+          }
+        }
+      }
+
+      // Agregar nuevos servicios
+      for (const servicioId of serviciosAAgregar) {
+        const relacionExistente = relacionesVentanilla.find(r => r.idServicio === servicioId);
+        if (relacionExistente) {
+          // Si existe pero está inactiva, activarla
+          if (!relacionExistente.activo) {
+            console.log(`[modificarServiciosVentanilla] Reactivando servicio ${servicioId}`);
+            await VentanillaServicioAPI.activar(relacionExistente.id, true);
+            console.log(`[modificarServiciosVentanilla] ✅ Servicio ${servicioId} reactivado`);
+          }
+        } else {
+          // Crear nueva relación
+          try {
+            console.log(`[modificarServiciosVentanilla] Creando relación para servicio ${servicioId}`);
+            await VentanillaServicioAPI.crear({
+              idVentanilla: ventanillaId,
+              idServicio: servicioId
+            });
+            console.log(`[modificarServiciosVentanilla] ✅ Servicio ${servicioId} agregado a ventanilla`);
+          } catch (error) {
+            console.error(`[modificarServiciosVentanilla] ⚠️ Error al agregar servicio ${servicioId}:`, error);
+          }
+        }
+      }
+
+      console.log('[modificarServiciosVentanilla] 🔄 Recargando datos...');
+      await loadData();
+
+      setState(prev => ({ ...prev, procesando: false }));
+      console.log('[modificarServiciosVentanilla] ✅ Modificación completada');
+      return true;
+    } catch (error: any) {
+      console.error('[modificarServiciosVentanilla] ❌ Error:', error);
+      setState(prev => ({
+        ...prev,
+        procesando: false,
+        error: error?.message || 'Error al modificar servicios de ventanilla'
+      }));
+      return false;
+    }
+  }, [loadData]);
+
   const refresh = useCallback(() => loadData(), [loadData]);
 
   const clearError = useCallback(() => {
@@ -404,6 +535,7 @@ export const useAsignacionVentanilla = (): UseAsignacionVentanillaReturn => {
     crearAsignacion,
     cerrarAsignacion,
     asignarServicioAVentanilla,
+    modificarServiciosVentanilla,
     clearError
   };
 };

@@ -1,16 +1,5 @@
-/* Variables - Mismo esquema de colores */
-:root {
-  --primary-dark-blue: #1a237e;
-  --primary-blue: #283593;
-  --warm-blue: #3949ab;
-  --accent-yellow: #ffc107;
-  --accent-yellow-light: #ffecb3;
-  --accent-yellow-dark: #ff8f00;
-  --navy-blue: #0d1b2a;
-  --text-white: #ffffff;
-  --text-light: rgba(255, 255, 255, 0.9);
-  --text-muted: rgba(255, 255, 255, 0.7);
-}
+/* LoginOperador Component - Scoped Styles
+   Variables movidas a shared.css para evitar duplicación */
 
 /* Container */
 .login-operador-container {

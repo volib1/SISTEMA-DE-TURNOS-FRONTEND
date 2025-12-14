@@ -1,13 +1,16 @@
+import { API_ROOT } from './http';
+
 // Test de conexión directo a la base de datos
 export class DatabaseConnectionTest {
   
   static async testBackendConnection(): Promise<void> {
     console.group('🔍 TEST DE CONEXIÓN BACKEND-BASE DE DATOS');
+    console.log('📡 API_ROOT:', API_ROOT);
     
     try {
       // 1. Test de servicios (este endpoint sabemos que funciona)
       console.log('1. 🧪 Probando endpoint de servicios...');
-      const serviciosResponse = await fetch('http://localhost:5079/api/kiosko/servicios');
+      const serviciosResponse = await fetch(`${API_ROOT}/kiosko/servicios`);
       console.log('   Status:', serviciosResponse.status);
       
       if (serviciosResponse.ok) {
@@ -19,7 +22,7 @@ export class DatabaseConnectionTest {
 
       // 2. Test de estados
       console.log('2. 🧪 Probando endpoint de estados...');
-      const estadosResponse = await fetch('http://localhost:5079/api/EstadoTicket/Lista');
+      const estadosResponse = await fetch(`${API_ROOT}/EstadoTicket/Lista`);
       console.log('   Status:', estadosResponse.status);
       
       if (estadosResponse.ok) {
@@ -40,7 +43,7 @@ export class DatabaseConnectionTest {
 
       // 3. Test de tickets existentes
       console.log('3. 🧪 Probando endpoint de tickets...');
-      const ticketsResponse = await fetch('http://localhost:5079/api/ticket/Lista');
+      const ticketsResponse = await fetch(`${API_ROOT}/ticket/Lista`);
       console.log('   Status:', ticketsResponse.status);
       
       if (ticketsResponse.ok) {
@@ -71,7 +74,7 @@ export class DatabaseConnectionTest {
           const primerServicio = servicios[0];
           console.log('   🎯 Intentando crear ticket para servicio:', primerServicio.nombre, `(ID: ${primerServicio.id})`);
           
-          const crearResponse = await fetch(`http://localhost:5079/api/kiosko/ticket?idServicio=${primerServicio.id}`, {
+          const crearResponse = await fetch(`${API_ROOT}/kiosko/ticket?idServicio=${primerServicio.id}`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
@@ -86,7 +89,7 @@ export class DatabaseConnectionTest {
             
             // Verificar que se guardó en BD
             setTimeout(async () => {
-              const verificarResponse = await fetch('http://localhost:5079/api/ticket/Lista');
+              const verificarResponse = await fetch(`${API_ROOT}/ticket/Lista`);
               if (verificarResponse.ok) {
                 const nuevosTickets = await verificarResponse.json();
                 const ticketEncontrado = nuevosTickets.items.find((t: any) => t.codigo === ticketCreado.codigo);
