@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Phone, CheckCircle, Clock, User, Monitor, AlertCircle, RefreshCw, LogOut, Home } from 'lucide-react';
+import { Phone, CheckCircle, Clock, User, Monitor, AlertCircle, RefreshCw, LogOut, Home, UserX } from 'lucide-react';
 import '../../styles/VentanillaOperador.css';
 import type { EmpleadoOperador } from './LoginOperador';
 import { useOperador } from '../../hooks/useOperador';
@@ -22,6 +22,7 @@ export default function VentanillaOperador({ empleado, onLogout }: VentanillaOpe
     llamarTurno,
     finalizarAtencion,
     volverALlamar,
+    omitirTurno,
     refrescar,
     limpiarError
   } = useOperador({
@@ -96,6 +97,13 @@ export default function VentanillaOperador({ empleado, onLogout }: VentanillaOpe
     await finalizarAtencion();
   };
 
+  const handleOmitirTurno = async () => {
+    if (!turnoActual) return;
+
+    setError(null);
+    await omitirTurno();
+  };
+
   const handleReiniciar = () => {
     setVentanilla('');
     setError(null);
@@ -107,7 +115,7 @@ export default function VentanillaOperador({ empleado, onLogout }: VentanillaOpe
       {/* Header */}
       <div className="operador-header">
         <div className="header-content">
-          <h1>ALCALDÍA MUNICIPAL</h1>
+          <h1>ALCALDÍA MUNICIPAL DE SONSONATE OESTE</h1>
           <p className="header-subtitle">Sistema de Gestión de Turnos - Operador</p>
           <div className="datetime-info">
             <Clock size={16} />
@@ -203,7 +211,7 @@ export default function VentanillaOperador({ empleado, onLogout }: VentanillaOpe
                       <div className="turno-servicio">
                         {turnoActual.servicio}
                       </div>
-                      
+
                       <div className="botones-accion">
                         <button
                           onClick={handleVolverALlamar}
@@ -212,6 +220,16 @@ export default function VentanillaOperador({ empleado, onLogout }: VentanillaOpe
                         >
                           <Phone size={20} />
                           <span>{loading ? 'Llamando...' : 'Volver a Llamar'}</span>
+                        </button>
+
+                        <button
+                          onClick={handleOmitirTurno}
+                          disabled={loading}
+                          className="btn-warning btn-omitir"
+                          title="Marcar como 'No se presentó' y pasar al siguiente turno"
+                        >
+                          <UserX size={20} />
+                          <span>{loading ? 'Procesando...' : 'No se presentó'}</span>
                         </button>
 
                         <button
@@ -232,12 +250,13 @@ export default function VentanillaOperador({ empleado, onLogout }: VentanillaOpe
                       
                       <button
                         onClick={handleLlamarTurno}
-                        disabled={loading}
-                        className="btn-primary btn-llamar"
+                        disabled={loading || proximosTurnos.length === 0}
+                        className={`btn-primary btn-llamar ${loading ? 'loading' : ''}`}
                       >
-                        <Phone size={24} />
-                        <span>{loading ? 'Llamando...' : 'Llamar Siguiente Turno'}</span>
+                        <Phone size={24} className={loading ? 'rotating' : ''} />
+                        <span>{loading ? 'Llamando turno...' : 'Llamar Siguiente Turno'}</span>
                       </button>
+                      {loading && <p className="loading-text">⏳ Procesando llamado...</p>}
                     </>
                   )}
 

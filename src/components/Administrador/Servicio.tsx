@@ -22,7 +22,7 @@ const ServicioCrud: React.FC = () => {
   const [formData, setFormData] = useState<CrearServicioInput | ActualizarServicioInput>({
     nombre: '',
     descripcion: '',
-    activo: true,
+    activo: false,
   });
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -137,7 +137,7 @@ const ServicioCrud: React.FC = () => {
 
   /* -------------------------------- Handlers ------------------------------- */
   const openNew = () => {
-    setFormData({ nombre: '', descripcion: '', activo: true });
+    setFormData({ nombre: '', descripcion: '', activo: false });
     setIsEditing(false);
     setEditingId(null);
     setShowModal(true);
@@ -184,7 +184,7 @@ const ServicioCrud: React.FC = () => {
         setServicios((list) => [creado, ...list]);
       }
       setShowModal(false);
-      setFormData({ nombre: '', descripcion: '', activo: true });
+      setFormData({ nombre: '', descripcion: '', activo: false });
       setIsEditing(false);
       setEditingId(null);
     } catch (error) {
@@ -266,7 +266,7 @@ const ServicioCrud: React.FC = () => {
   };
 
   const resetForm = () => {
-    setFormData({ nombre: '', descripcion: '', activo: true });
+    setFormData({ nombre: '', descripcion: '', activo: false });
     setIsEditing(false);
     setEditingId(null);
     setShowModal(false);

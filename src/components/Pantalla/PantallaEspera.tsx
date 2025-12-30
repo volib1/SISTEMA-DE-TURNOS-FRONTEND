@@ -132,8 +132,8 @@ export default function PantallaEspera({ disableVoice = false }: PantallaEsperaP
     try {
       const data = await PantallaFeedAPI.ultimosLlamados();
 
-      console.log('[PantallaEspera] 📊 Turnos actuales:', data.length);
-      console.log('[PantallaEspera] 📊 Turnos anteriores:', llamados.length);
+      console.log('[PantallaEspera] Turnos actuales:', data.length);
+      console.log('[PantallaEspera] Turnos anteriores:', llamados.length);
 
       // Detectar turnos nuevos (que no estaban en la lista anterior)
       const nuevosLlamados = data.filter(nuevoLlamado => {
@@ -284,20 +284,25 @@ export default function PantallaEspera({ disableVoice = false }: PantallaEsperaP
 
   return (
     <div style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
-      padding: '24px'
-    }}>
+  height: '100vh',
+  background: '#ffffff',
+  padding: 0,
+  margin: 0,
+  overflow: 'hidden',
+  display: 'flex',
+  flexDirection: 'column'
+}}>
       {/* Status Bar */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: '24px',
-        padding: '12px 20px',
+        marginBottom: '12px',
+        padding: '8px 16px',
         background: 'white',
-        borderRadius: '12px',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
+        borderRadius: '8px',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+        flexShrink: 0
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{
@@ -423,228 +428,28 @@ export default function PantallaEspera({ disableVoice = false }: PantallaEsperaP
         </div>
       </div>
 
-      {/* Header Principal */}
-      <div style={{
-        background: '#0A2342',
-        color: 'white',
-        padding: '32px 40px',
-        borderRadius: '16px',
-        marginBottom: '32px',
-        boxShadow: '0 8px 25px rgba(10, 35, 66, 0.3)',
-        border: '2px solid #E9C46A',
-        position: 'relative'
-      }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '20px'
-        }}>
-          <div>
-            <h1 style={{
-              fontSize: '28px',
-              fontWeight: 700,
-              margin: 0,
-              color: '#E9C46A',
-              fontFamily: "'Times New Roman', Georgia, serif"
-            }}>
-              ALCALDÍA MUNICIPAL DE SONSONATE OESTE
-            </h1>
-            <p style={{
-              fontSize: '16px',
-              margin: '8px 0 0 0',
-              color: '#E9C46A',
-              opacity: 0.85,
-              fontFamily: "'Times New Roman', Georgia, serif"
-            }}>
-              Sistema de Gestión de Turnos
-            </p>
-          </div>
-
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            fontSize: '14px',
-            color: 'rgba(255, 255, 255, 0.9)',
-            padding: '10px 20px',
-            borderRadius: '25px',
-            border: '1px solid rgba(233, 196, 106, 0.4)',
-            background: 'rgba(233, 196, 106, 0.1)'
-          }}>
-            <Calendar size={16} color="#E9C46A" />
-            {formatDate()}
-          </div>
-        </div>
-      </div>
-
-      {/* Stats Dashboard */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: '20px',
-        marginBottom: '32px'
-      }}>
-        <div style={{
-          background: 'white',
-          padding: '24px',
-          borderRadius: '16px',
-          boxShadow: '0 4px 15px rgba(0,0,0,0.08)',
-          border: '1px solid rgba(0,0,0,0.05)'
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            marginBottom: '16px'
-          }}>
-            <div style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '12px',
-              background: 'var(--primary)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white'
-            }}>
-              <Monitor size={24} />
-            </div>
-            <div>
-              <div style={{ fontSize: '14px', color: 'var(--muted)', fontWeight: 500 }}>
-                Turnos Activos
-              </div>
-              <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--text)' }}>
-                {llamados.length}
-              </div>
-            </div>
-          </div>
-          <div style={{
-            fontSize: '12px',
-            color: 'var(--success)',
-            background: 'var(--success-50)',
-            padding: '6px 12px',
-            borderRadius: '20px',
-            textAlign: 'center',
-            fontWeight: 600
-          }}>
-            EN TIEMPO REAL
-          </div>
-        </div>
-
-        <div style={{
-          background: 'white',
-          padding: '24px',
-          borderRadius: '16px',
-          boxShadow: '0 4px 15px rgba(0,0,0,0.08)',
-          border: '1px solid rgba(0,0,0,0.05)'
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            marginBottom: '16px'
-          }}>
-            <div style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '12px',
-              background: 'var(--warning)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white'
-            }}>
-              <Users size={24} />
-            </div>
-            <div>
-              <div style={{ fontSize: '14px', color: 'var(--muted)', fontWeight: 500 }}>
-                Ventanillas Activas
-              </div>
-              <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--text)' }}>
-                {new Set(llamados.map(l => l.ventanilla)).size}
-              </div>
-            </div>
-          </div>
-          <div style={{
-            fontSize: '12px',
-            color: 'var(--warning)',
-            background: 'var(--warning-50)',
-            padding: '6px 12px',
-            borderRadius: '20px',
-            textAlign: 'center',
-            fontWeight: 600
-          }}>
-            ATENDIENDO
-          </div>
-        </div>
-
-        <div style={{
-          background: 'white',
-          padding: '24px',
-          borderRadius: '16px',
-          boxShadow: '0 4px 15px rgba(0,0,0,0.08)',
-          border: '1px solid rgba(0,0,0,0.05)'
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            marginBottom: '16px'
-          }}>
-            <div style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '12px',
-              background: 'var(--success)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white'
-            }}>
-              <Clock size={24} />
-            </div>
-            <div>
-              <div style={{ fontSize: '14px', color: 'var(--muted)', fontWeight: 500 }}>
-                Última Actualización
-              </div>
-              <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>
-                {formatTime(lastUpdate)}
-              </div>
-            </div>
-          </div>
-          <div style={{
-            fontSize: '12px',
-            color: 'var(--success)',
-            background: 'var(--success-50)',
-            padding: '6px 12px',
-            borderRadius: '20px',
-            textAlign: 'center',
-            fontWeight: 600
-          }}>
-            SINCRONIZADO
-          </div>
-        </div>
-      </div>
-
       {/* Main Display */}
       <div style={{
-        display: 'grid',
-        gridTemplateColumns: mediaFiles.length > 0 ? '1fr 400px' : '1fr',
-        gap: '24px',
-        alignItems: 'start'
-      }}>
-
+          background: 'white',
+          display: 'grid',
+          gridTemplateColumns: mediaFiles.length > 0 ? '1fr 400px' : '1fr',
+          gap: '16px',
+          flex: 1,
+          minHeight: 0,     
+          overflow: 'hidden'
+        }}>
         {/* Sección Multimedia */}
         {mediaFiles.length > 0 && (
           <div style={{
             background: 'white',
-            borderRadius: '20px',
+            borderRadius: '16px',
             boxShadow: '0 8px 25px rgba(0,0,0,0.1)',
             overflow: 'hidden',
             border: '1px solid rgba(0,0,0,0.05)',
-            position: 'relative'
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%'
           }}>
             <div style={{
               background: 'linear-gradient(135deg, #FFD700, #FFA500)',
@@ -713,13 +518,14 @@ export default function PantallaEspera({ disableVoice = false }: PantallaEsperaP
 
             {/* Contenido multimedia */}
             <div style={{
-              height: '400px',
-              background: '#000',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              position: 'relative'
-            }}>
+                flex: 1,
+                minHeight: 0,
+                background: '#000',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative'
+              }}>
               {currentMedia && (
                 <>
                   {currentMedia.type === 'image' && (
@@ -832,9 +638,6 @@ export default function PantallaEspera({ disableVoice = false }: PantallaEsperaP
               <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 700 }}>
                 Turnos Siendo Atendidos
               </h2>
-              <p style={{ margin: '4px 0 0 0', fontSize: '14px', opacity: 0.9 }}>
-                Atención en ventanillas - Por favor manténgase atento
-              </p>
             </div>
           </div>
 
@@ -897,104 +700,162 @@ export default function PantallaEspera({ disableVoice = false }: PantallaEsperaP
               </div>
             </div>
           ) : (
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-              gap: '24px'
-            }}>
-              {llamados.map((ticket, idx) => (
+            <>
+              {/* Turno Más Reciente - Grande */}
+              {llamados.length > 0 && (
                 <div
-                  key={idx}
                   style={{
                     background: 'linear-gradient(135deg, var(--primary-50), var(--accent-50))',
                     border: '2px solid var(--primary)',
                     borderRadius: '20px',
-                    padding: '32px',
+                    padding: '40px',
                     textAlign: 'center',
                     position: 'relative',
                     overflow: 'hidden',
                     animation: 'fadeInUp 0.6s ease-out',
-                    animationDelay: `${idx * 0.1}s`,
-                    animationFillMode: 'both'
+                    marginBottom: '24px'
                   }}
                 >
                   <div style={{
                     position: 'absolute',
                     top: '16px',
                     right: '16px',
-                    width: '12px',
-                    height: '12px',
+                    width: '14px',
+                    height: '14px',
                     borderRadius: '50%',
                     background: 'var(--success)',
                     animation: 'pulse 2s infinite'
                   }}></div>
 
                   <div style={{
-                    fontSize: '48px',
+                    fontSize: '64px',
                     fontWeight: 700,
                     color: 'var(--primary)',
-                    marginBottom: '16px',
+                    marginBottom: '20px',
                     textShadow: '0 2px 4px rgba(0,0,0,0.1)'
                   }}>
-                    {ticket.ticket}
+                    {llamados[0].ticket}
                   </div>
 
                   <div style={{
                     background: 'white',
-                    padding: '16px 24px',
+                    padding: '20px 32px',
                     borderRadius: '50px',
-                    marginBottom: '20px',
+                    marginBottom: '24px',
                     boxShadow: '0 4px 15px rgba(0,0,0,0.1)'
                   }}>
                     <div style={{
-                      fontSize: '14px',
+                      fontSize: '16px',
                       color: 'var(--muted)',
                       fontWeight: 600,
                       textTransform: 'uppercase',
                       letterSpacing: '0.05em',
-                      marginBottom: '4px'
+                      marginBottom: '6px'
                     }}>
                       Diríjase a
                     </div>
                     <div style={{
-                      fontSize: '20px',
+                      fontSize: '28px',
                       fontWeight: 700,
                       color: 'var(--primary)'
                     }}>
-                      {ticket.ventanilla}
+                      {llamados[0].ventanilla}
                     </div>
                   </div>
 
-                  {ticket.servicio && (
+                  {llamados[0].servicio && (
                     <div style={{
-                      fontSize: '14px',
+                      fontSize: '16px',
                       color: 'var(--text)',
                       background: 'rgba(255,255,255,0.8)',
-                      padding: '8px 16px',
+                      padding: '10px 20px',
                       borderRadius: '20px',
                       fontWeight: 500
                     }}>
-                      {ticket.servicio}
+                      {llamados[0].servicio}
                     </div>
                   )}
 
-                  {ticket.hora && (
+                  {llamados[0].hora && llamados[0].hora !== 'Invalid Date' && (
                     <div style={{
-                      fontSize: '12px',
+                      fontSize: '14px',
                       color: 'var(--muted)',
-                      marginTop: '8px',
+                      marginTop: '12px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '4px'
+                      gap: '6px'
                     }}>
-                      <Clock size={12} />
-                      {ticket.hora}
+                      <Clock size={14} />
+                      Hora llamado: {llamados[0].hora}
                     </div>
                   )}
                 </div>
-              ))}
+              )}
+
+              {/* Historial pequeño de turnos recientes */}
+{llamados.length > 1 && (
+  <div>
+    <h3 style={{
+      fontSize: '14px',
+      fontWeight: 600,
+      color: 'var(--muted)',
+      marginBottom: '10px',
+      borderBottom: '1px solid var(--primary-50)',
+      paddingBottom: '6px'
+    }}>
+      Turnos recientes
+    </h3>
+
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
+      gap: '8px'
+    }}>
+      {llamados.slice(1, 5).map((ticket, idx) => (
+        <div
+          key={idx}
+          style={{
+            background: '#f8f9fa',
+            border: '1px solid #e0e0e0',
+            borderRadius: '8px',
+            padding: '8px',
+            textAlign: 'center'
+          }}
+        >
+          <div style={{
+            fontSize: '16px',
+            fontWeight: 700,
+            color: 'var(--primary)',
+            lineHeight: 1
+          }}>
+            {ticket.ticket}
+          </div>
+
+          <div style={{
+            fontSize: '11px',
+            color: 'var(--muted)',
+            marginTop: '4px'
+          }}>
+            {ticket.ventanilla}
+          </div>
+
+          {ticket.hora && ticket.hora !== 'Invalid Date' && (
+            <div style={{
+              fontSize: '10px',
+              color: 'var(--muted)',
+              marginTop: '2px'
+            }}>
+              {ticket.hora}
             </div>
+          )}
+        </div>
+      ))}
+    </div>
+  </div>
+)}
+
+            </>
           )}
         </div>
         </div>

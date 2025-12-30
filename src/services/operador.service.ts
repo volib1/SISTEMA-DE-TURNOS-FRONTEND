@@ -268,36 +268,23 @@ export const OperadorAPI = {
   },
 
   /**
-   * Vuelve a llamar el turno actual (cambia estado a "Llamando" nuevamente)
-   * Estrategia: Cambiar temporalmente a "Pendiente" y luego de vuelta a "Llamando"
-   * para que la pantalla lo detecte como un nuevo llamado
+   * Vuelve a llamar el turno actual
+   * Utiliza el mismo endpoint que llamar turno para crear un nuevo registro de llamado
+   * Esto asegura que la pantalla lo detecte como un nuevo anuncio
    */
   async volverALlamar(idTicket: number, idEmpleado: number): Promise<void> {
     console.log('[OperadorAPI] 🔔 Volviendo a llamar ticket:', { idTicket, idEmpleado });
-    
+
     if (!idEmpleado) {
       throw new Error('Se requiere el ID del empleado para volver a llamar');
     }
-    
+
     try {
-      // Paso 1: Cambiar temporalmente a "Pendiente" para resetear la detección
-      console.log('[OperadorAPI] 📝 Paso 1: Cambiando a Pendiente temporalmente...');
-      await fetch(
-        `${API_EMPLEADO}/ticket/${idTicket}/estado?empleadoId=${idEmpleado}&nuevoEstado=Pendiente`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-        }
-      );
-
-      // Pequeña pausa para asegurar que el cambio se procese
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      // Paso 2: Volver a "Llamando" - la pantalla lo detectará como nuevo
-      console.log('[OperadorAPI] 📢 Paso 2: Volviendo a estado Llamando...');
+      // ✅ Usar el endpoint de llamar que maneja correctamente el turno
+      // Este endpoint detecta si ya hay un turno abierto y lo reutiliza,
+      // pero al volver a establecer el estado como "Llamando", la pantalla lo detectará como nuevo
       const response = await fetch(
-        `${API_EMPLEADO}/ticket/${idTicket}/estado?empleadoId=${idEmpleado}&nuevoEstado=Llamando`,
+        `${API_EMPLEADO}/ticket/${idTicket}/llamar?empleadoId=${idEmpleado}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -324,7 +311,7 @@ export const OperadorAPI = {
    */
   async obtenerTurnoActual(idVentanilla: number): Promise<TurnoOperadorDTO | null> {
     console.log('[OperadorAPI] 📋 Obteniendo turno actual para ventanilla:', idVentanilla);
-    
+
     try {
       // Buscar tickets en estado "Llamando" (id=6) que tengan un turno asignado a esta ventanilla
       const response = await fetch(`${API_TICKET}/Lista?idEstado=6`)
@@ -334,19 +321,23 @@ export const OperadorAPI = {
 
       // El backend devuelve un objeto paginado: { page, pageSize, total, items: [] }
       const tickets = response?.items ?? [];
-      
+
       console.log('[OperadorAPI] 📋 Total tickets en estado Llamando:', tickets.length);
 
-      // Filtrar por ventanilla
+      // Filtrar por ventanilla y que el turno NO esté finalizado
       const turnoActual = tickets.find((d: any) => {
         // Buscar el campo turno (minúsculas)
         const turnoField = d.Turno ?? d.turno;
         const ventanillaId = Number(turnoField?.id_ventanilla ?? turnoField?.idVentanilla ?? 0);
+        const horaFin = turnoField?.hora_fin ?? turnoField?.horaFin;
+
+        // ✅ IMPORTANTE: Solo considerar turnos que NO han sido finalizados
+        const turnoActivo = horaFin === null || horaFin === undefined;
         const esDeVentanilla = ventanillaId === idVentanilla;
-        
-        console.log('[OperadorAPI] 🔍 Ticket:', d.codigo, '| Ventanilla del turno:', ventanillaId, '| Buscando:', idVentanilla, '| Match:', esDeVentanilla);
-        
-        return esDeVentanilla;
+
+        console.log('[OperadorAPI] 🔍 Ticket:', d.codigo, '| Ventanilla del turno:', ventanillaId, '| Buscando:', idVentanilla, '| Hora fin:', horaFin, '| Activo:', turnoActivo, '| Match:', esDeVentanilla && turnoActivo);
+
+        return esDeVentanilla && turnoActivo;
       });
 
       if (!turnoActual) {
@@ -370,6 +361,42 @@ export const OperadorAPI = {
     } catch (error) {
       console.error('[OperadorAPI] ❌ Error obteniendo turno actual:', error);
       return null;
+    }
+  },
+
+  /**
+   * Marca el turno actual como "No se presentó" y finaliza la atención
+   * Permite al operador omitir un cliente que no se presentó
+   */
+  async omitirTurno(idTicket: number, idEmpleado: number): Promise<void> {
+    console.log('[OperadorAPI] ⏭️ Omitiendo turno (No se presentó):', { idTicket, idEmpleado });
+
+    if (!idEmpleado) {
+      throw new Error('Se requiere el ID del empleado para omitir el turno');
+    }
+
+    try {
+      // ✅ Usar endpoint del backend: POST /api/empleado/ticket/{ticketId}/estado?empleadoId=#&nuevoEstado=No presentado
+      const response = await fetch(
+        `${API_EMPLEADO}/ticket/${idTicket}/estado?empleadoId=${idEmpleado}&nuevoEstado=No presentado`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[OperadorAPI] ❌ Error del backend:', errorText);
+        throw new Error('Error al omitir el turno');
+      }
+
+      const result = await handleJSON<any>(response);
+      console.log('[OperadorAPI] ✅ Turno omitido exitosamente:', result);
+    } catch (error) {
+      console.error('[OperadorAPI] ❌ Error omitiendo turno:', error);
+      throw error;
     }
   },
 };

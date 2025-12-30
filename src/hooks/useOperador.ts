@@ -68,8 +68,11 @@ export function useOperador({ idVentanilla, idEmpleado, autoRefresh = true, refr
 
   /**
    * Llama al siguiente turno en espera
+   * ⚠️ IMPORTANTE: Esta función SOLO se ejecuta cuando el usuario presiona el botón "Llamar Siguiente Turno"
    */
   const llamarTurno = useCallback(async () => {
+    console.log('[useOperador] 🔴 LLAMADA MANUAL POR EL USUARIO - Botón presionado');
+
     if (turnoActual) {
       setError('Ya hay un turno en atención. Finalice la atención actual antes de llamar otro.');
       return;
@@ -80,22 +83,30 @@ export function useOperador({ idVentanilla, idEmpleado, autoRefresh = true, refr
       return;
     }
 
+    const siguienteTurno = proximosTurnos[0];
+
+    // ✅ OPTIMIZACIÓN: Actualización optimista de UI
+    // Actualizar UI inmediatamente sin esperar al servidor para mejor UX
+    setProximosTurnos(prev => prev.slice(1)); // Remover primer turno de la lista
     setLoading(true);
     setError(null);
 
     try {
-      const siguienteTurno = proximosTurnos[0];
-      console.log('[useOperador] 📞 Llamando turno:', siguienteTurno.codigo);
-      
+      console.log('[useOperador] 📞 *** LLAMANDO TURNO (ACCIÓN MANUAL) ***:', siguienteTurno.codigo);
+
       const turno = await OperadorAPI.llamarTurno(siguienteTurno.idTicket, idVentanilla, idEmpleado);
-      
+
       setTurnoActual(turno);
-      await cargarProximosTurnos(); // Actualizar lista
-      
-      console.log('[useOperador] ✅ Turno llamado exitosamente');
+      // ✅ OPTIMIZACIÓN: No esperar la recarga, el auto-refresh lo hará
+      // Esto hace la UI más rápida y responsive
+      cargarProximosTurnos(); // Sin await - ejecuta en background
+
+      console.log('[useOperador] ✅ *** TURNO LLAMADO EXITOSAMENTE (ACCIÓN MANUAL) ***');
     } catch (err: any) {
       console.error('[useOperador] ❌ Error llamando turno:', err);
       setError(err?.message || 'Error al llamar el turno');
+      // Revertir cambio optimista en caso de error
+      await cargarProximosTurnos();
     } finally {
       setLoading(false);
     }
@@ -115,21 +126,26 @@ export function useOperador({ idVentanilla, idEmpleado, autoRefresh = true, refr
       return;
     }
 
+    // ✅ OPTIMIZACIÓN: Limpiar UI inmediatamente
+    const turnoAnterior = turnoActual;
+    setTurnoActual(null);
     setLoading(true);
     setError(null);
 
     try {
-      console.log('[useOperador] ✅ Finalizando atención del turno:', turnoActual.codigo);
-      
-      await OperadorAPI.finalizarAtencion(turnoActual.id, turnoActual.idTicket, idEmpleado);
-      
-      setTurnoActual(null);
-      await cargarProximosTurnos(); // Actualizar lista
-      
+      console.log('[useOperador] ✅ Finalizando atención del turno:', turnoAnterior.codigo);
+
+      await OperadorAPI.finalizarAtencion(turnoAnterior.id, turnoAnterior.idTicket, idEmpleado);
+
+      // ✅ OPTIMIZACIÓN: Cargar en background sin esperar
+      cargarProximosTurnos();
+
       console.log('[useOperador] ✅ Atención finalizada exitosamente');
     } catch (err: any) {
       console.error('[useOperador] ❌ Error finalizando atención:', err);
       setError(err?.message || 'Error al finalizar la atención');
+      // Revertir cambio optimista
+      setTurnoActual(turnoAnterior);
     } finally {
       setLoading(false);
     }
@@ -154,12 +170,11 @@ export function useOperador({ idVentanilla, idEmpleado, autoRefresh = true, refr
 
     try {
       console.log('[useOperador] 🔔 Volviendo a llamar turno:', turnoActual.codigo);
-      
+
       await OperadorAPI.volverALlamar(turnoActual.idTicket, idEmpleado);
-      
-      // Refrescar datos para actualizar el estado
-      await cargarDatos();
-      
+
+      // ✅ OPTIMIZACIÓN: No esperar la recarga, solo notificar éxito
+      // El auto-refresh actualizará los datos automáticamente
       console.log('[useOperador] ✅ Turno vuelto a llamar exitosamente');
     } catch (err: any) {
       console.error('[useOperador] ❌ Error volviendo a llamar:', err);
@@ -167,15 +182,53 @@ export function useOperador({ idVentanilla, idEmpleado, autoRefresh = true, refr
     } finally {
       setLoading(false);
     }
-  }, [turnoActual, idEmpleado, cargarDatos]);
+  }, [turnoActual, idEmpleado]);
 
   /**
-   * Auto-refresh cada X segundos
+   * Omite el turno actual marcándolo como "No se presentó"
+   * Permite al operador pasar al siguiente turno cuando el cliente no se presenta
+   */
+  const omitirTurno = useCallback(async () => {
+    if (!turnoActual) {
+      setError('No hay un turno en atención');
+      return;
+    }
+
+    if (!idEmpleado) {
+      setError('ID de empleado no disponible');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      console.log('[useOperador] ⏭️ Omitiendo turno (No se presentó):', turnoActual.codigo);
+
+      await OperadorAPI.omitirTurno(turnoActual.idTicket, idEmpleado);
+
+      setTurnoActual(null);
+      await cargarProximosTurnos(); // Actualizar lista
+
+      console.log('[useOperador] ✅ Turno omitido exitosamente');
+    } catch (err: any) {
+      console.error('[useOperador] ❌ Error omitiendo turno:', err);
+      setError(err?.message || 'Error al omitir el turno');
+    } finally {
+      setLoading(false);
+    }
+  }, [turnoActual, idEmpleado, cargarProximosTurnos]);
+
+  /**
+   * Auto-refresh cada X segundos - SOLO CARGA DATOS, NO LLAMA TURNOS
    */
   useEffect(() => {
     if (!autoRefresh) return;
 
+    console.log('[useOperador] ⚙️ Auto-refresh habilitado (solo carga datos, NO llama turnos automáticamente)');
+
     const interval = setInterval(() => {
+      console.log('[useOperador] 🔄 Auto-refresh: Cargando datos (sin llamar turnos)...');
       cargarDatos();
     }, refreshInterval);
 
@@ -230,6 +283,7 @@ export function useOperador({ idVentanilla, idEmpleado, autoRefresh = true, refr
     llamarTurno,
     finalizarAtencion,
     volverALlamar,
+    omitirTurno,
     refrescar: cargarDatos,
     limpiarError: () => setError(null),
   };

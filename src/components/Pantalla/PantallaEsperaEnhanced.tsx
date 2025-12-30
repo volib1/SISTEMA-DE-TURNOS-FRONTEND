@@ -27,6 +27,16 @@ export default function PantallaEsperaEnhanced({ disableVoice = false }: Pantall
   // Estados para sintesis de voz
   const [voiceEnabled, setVoiceEnabled] = useState(!disableVoice);
   const lastAnnouncedRef = useRef<Set<string>>(new Set());
+  const esPrimeraCargaRef = useRef(true); // Para no anunciar turnos antiguos al abrir la pantalla
+
+  // Estado para hora en tiempo real
+  const [horaActual, setHoraActual] = useState(
+    new Date().toLocaleTimeString('es-ES', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    })
+  );
 
   /**
    * Anuncia un turno usando sintesis de voz
@@ -44,15 +54,22 @@ export default function PantallaEsperaEnhanced({ disableVoice = false }: Pantall
       return;
     }
 
-    const key = `${llamado.ticket}-${llamado.ventanilla}`;
-    
+    // ✅ Usar timestamp exacto del llamado del backend como parte de la clave
+    // Esto permite detectar cuando es el MISMO llamado (mismo turno, mismo timestamp)
+    // vs cuando es un RE-LLAMADO (mismo turno, timestamp diferente)
+    // IMPORTANTE: Usar horaTimestamp (milisegundos) en lugar de hora (HH:MM) para detectar re-llamados
+    const horaLlamado = llamado.horaTimestamp || Date.now();
+    const key = `${llamado.ticket}-${llamado.ventanilla}-${horaLlamado}`;
+
+    // Verificar si ya fue anunciado
     if (lastAnnouncedRef.current.has(key)) {
-      console.log('[PantallaEnhanced] Turno ya anunciado:', key);
+      console.log('[PantallaEnhanced] ⏭️ Turno ya anunciado, omitiendo:', key);
       return;
     }
-    
+
+    console.log('[PantallaEnhanced] 🔊 Anunciando turno NUEVO con clave:', key);
+
     lastAnnouncedRef.current.add(key);
-    console.log('[PantallaEnhanced] Marcado como anunciado:', key);
 
     // Limpiar cache antiguo (mantener ultimos 10)
     if (lastAnnouncedRef.current.size > 10) {
@@ -65,128 +82,108 @@ export default function PantallaEsperaEnhanced({ disableVoice = false }: Pantall
     window.speechSynthesis.cancel();
 
     setTimeout(() => {
-      // Parte 1: "Turno del cliente:" (rápido)
-      const parte1 = new SpeechSynthesisUtterance('Turno del cliente:');
-      parte1.lang = 'es-ES';
-      parte1.rate = 1.2; // Un poco más rápido
-      parte1.pitch = 1.1;
-      parte1.volume = 1.0;
+      // Construir mensaje completo y fluido
+      const numeroVentanilla = llamado.ventanilla.replace(/[^\d]/g, '');
 
-      // Parte 2: Número del ticket (lento, separando dígitos)
-      const ticketDigitos = llamado.ticket.split('').join(', ');
-      const parte2 = new SpeechSynthesisUtterance(ticketDigitos);
-      parte2.lang = 'es-ES';
-      parte2.rate = 0.8; // Un poco más rápido pero aún claro
-      parte2.pitch = 1.1;
-      parte2.volume = 1.0;
+      // Convertir dígitos a palabras en español
+      const numerosEspanol: Record<string, string> = {
+        '0': 'CERO',
+        '1': 'UNO',
+        '2': 'DOS',
+        '3': 'TRES',
+        '4': 'CUATRO',
+        '5': 'CINCO',
+        '6': 'SEIS',
+        '7': 'SIETE',
+        '8': 'OCHO',
+        '9': 'NUEVE'
+      };
 
-      // Parte 3: ", en el numero de ventanilla:" (rápido)
-      const parte3 = new SpeechSynthesisUtterance(', en el numero de ventanilla:');
-      parte3.lang = 'es-ES';
-      parte3.rate = 1.2; // Un poco más rápido
-      parte3.pitch = 1.1;
-      parte3.volume = 1.0;
+      // Separar TODOS los caracteres del código con comas
+      // Ejemplo: "AA006" → "A, A, CERO, CERO, SEIS" (pausas entre cada carácter)
+      const codigo = llamado.ticket;
 
-      // Parte 4: Número de ventanilla (normal) - Solo el número
-      const numeroVentanilla = llamado.ventanilla.replace(/[^\d]/g, ''); // Extraer solo números
-      const parte4 = new SpeechSynthesisUtterance(numeroVentanilla);
-      parte4.lang = 'es-ES';
-      parte4.rate = 1.0; // Un poco más rápido
-      parte4.pitch = 1.1;
-      parte4.volume = 1.0;
+      // Separar cada carácter, convertir números a palabras y unir con comas
+      const codigoConPausas = codigo.split('').map(char => {
+        // Si es un dígito, convertirlo a palabra en español
+        if (/\d/.test(char)) {
+          return numerosEspanol[char];
+        }
+        // Si es letra, mantenerla como está
+        return char;
+      }).join(', ');
 
+      // Mensaje completo con pausas entre cada carácter
+      // La coma después de "cliente" crea una pausa antes de decir el código
+      const mensajeCompleto = `Turno del cliente, ${codigoConPausas}. Diríjase a la ventanilla ${numeroVentanilla}`;
+
+      const utterance = new SpeechSynthesisUtterance(mensajeCompleto);
+      utterance.lang = 'es-419'; // Español latinoamericano neutro (más cercano a El Salvador)
+      utterance.rate = 0.9; // Velocidad moderada, clara pero no demasiado lenta
+      utterance.pitch = 1.0; // Tono neutral y natural
+      utterance.volume = 1.0;
+
+      // Seleccionar voces naturales y profesionales (estilo banco)
       const voices = window.speechSynthesis.getVoices();
-      
-      // Priorizar voces FEMENINAS de mejor calidad
+
       const preferredVoices = [
-        // Google (las mejores)
-        'Google español',
-        'Google español de España',
-        'es-ES-Standard-A', // Voz femenina
-        'es-ES-Wavenet-C', // Voz femenina premium
-        'es-MX-Standard-A', // Voz femenina México
-        
-        // Microsoft (muy buenas)
-        'Microsoft Helena', // Windows - Femenina
-        'Microsoft Sabina', // Windows - Femenina
-        'Microsoft Laura', // Windows - Femenina
-        'Helena',
-        'Sabina',
-        'Laura',
-        
-        // Apple (buenas)
-        'Paulina', // macOS - Femenina
-        'Monica', // macOS - Femenina
-        'Angelica', // iOS - Femenina
-        
-        // Otras
-        'es-ES-Standard',
-        'Spanish Female',
+        'Google español de Estados Unidos', // ⭐ MEJOR: Voz latina neutral
+        'Microsoft Sabina',       // Voz mexicana neutra (cercana a Centroamérica)
+        'es-US-Standard-A',       // Google Cloud latina
+        'Paulina',                // macOS voz mexicana neutra
+        'Google español',         // Fallback general
+        'Microsoft Helena',       // Voz española (backup)
       ];
 
       let selectedVoice = null;
 
-      // Buscar voz preferida
+      // 1. Buscar voces preferidas en orden de prioridad
       for (const preferred of preferredVoices) {
-        selectedVoice = voices.find(v => 
+        selectedVoice = voices.find(v =>
           v.name.includes(preferred) && v.lang.startsWith('es')
         );
         if (selectedVoice) break;
       }
 
-      // Si no encuentra preferida, buscar cualquier voz FEMENINA española
+      // 2. Fallback: buscar voces latinoamericanas (MX, US, 419)
       if (!selectedVoice) {
-        selectedVoice = voices.find(v => 
-          v.lang.startsWith('es') && 
-          (v.name.toLowerCase().includes('female') || 
-           v.name.toLowerCase().includes('woman') ||
-           v.name.toLowerCase().includes('mujer'))
+        selectedVoice = voices.find(v =>
+          (v.lang === 'es-US' || v.lang === 'es-MX' || v.lang === 'es-419') &&
+          (v.name.toLowerCase().includes('female') ||
+           v.name.toLowerCase().includes('sabina') ||
+           v.name.toLowerCase().includes('paulina'))
         );
       }
 
-      // Si no, buscar voces en línea (mejor calidad)
+      // 3. Fallback: cualquier voz latina online (mejor calidad)
       if (!selectedVoice) {
-        selectedVoice = voices.find(v => 
+        selectedVoice = voices.find(v =>
+          (v.lang === 'es-US' || v.lang === 'es-MX' || v.lang === 'es-419') && !v.localService
+        );
+      }
+
+      // 4. Fallback: cualquier voz española online
+      if (!selectedVoice) {
+        selectedVoice = voices.find(v =>
           v.lang.startsWith('es') && !v.localService
         );
       }
 
-      // Fallback: cualquier voz española
+      // 5. Último fallback: cualquier voz española disponible
       if (!selectedVoice) {
         selectedVoice = voices.find(v => v.lang.startsWith('es'));
       }
 
-      // Asignar la misma voz a todas las partes
       if (selectedVoice) {
-        [parte1, parte2, parte3, parte4].forEach(p => p.voice = selectedVoice);
-        console.log('[PantallaEnhanced] Voz seleccionada:', selectedVoice.name, '| Local:', selectedVoice.localService);
-      } else {
-        console.warn('[PantallaEnhanced] No se encontró voz española');
+        utterance.voice = selectedVoice;
+        console.log('[PantallaEnhanced] 🎙️ Voz seleccionada (estilo banco):', selectedVoice.name);
       }
 
-      // Reproducir las partes en secuencia
-      parte1.onend = () => {
-        console.log('[PantallaEnhanced] Parte 1 finalizada, reproduciendo ticket');
-        window.speechSynthesis.speak(parte2);
-      };
+      utterance.onend = () => console.log('[PantallaEnhanced] ✅ Anuncio completado');
+      utterance.onerror = (e) => console.error('[PantallaEnhanced] ❌ Error:', e);
 
-      parte2.onend = () => {
-        console.log('[PantallaEnhanced] Parte 2 finalizada, reproduciendo ventanilla');
-        window.speechSynthesis.speak(parte3);
-      };
-
-      parte3.onend = () => {
-        console.log('[PantallaEnhanced] Parte 3 finalizada, reproduciendo número ventanilla');
-        window.speechSynthesis.speak(parte4);
-      };
-
-      parte4.onend = () => console.log('[PantallaEnhanced] Reproducción completa finalizada');
-      
-      parte1.onerror = parte2.onerror = parte3.onerror = parte4.onerror = 
-        (e) => console.error('[PantallaEnhanced] Error:', e);
-
-      console.log('[PantallaEnhanced] Iniciando reproducción en partes');
-      window.speechSynthesis.speak(parte1);
+      console.log('[PantallaEnhanced] 🔊 Anunciando:', mensajeCompleto);
+      window.speechSynthesis.speak(utterance);
     }, 100);
   };
 
@@ -195,36 +192,48 @@ export default function PantallaEsperaEnhanced({ disableVoice = false }: Pantall
     setError(null);
     try {
       const data = await PantallaFeedAPI.ultimosLlamados();
-      
+
       console.log('[PantallaEnhanced] Carga de datos - Nuevos:', data.length, 'Previos:', llamados.length);
-      
+
       // Detectar turnos nuevos que no estaban antes
+      // IMPORTANTE: Comparar también horaTimestamp para detectar RE-LLAMADOS del mismo turno
       const nuevosLlamados = data.filter(nuevoLlamado => {
         const existeAntes = llamados.some(
-          existente => existente.ticket === nuevoLlamado.ticket && 
-                       existente.ventanilla === nuevoLlamado.ventanilla
+          existente => existente.ticket === nuevoLlamado.ticket &&
+                       existente.ventanilla === nuevoLlamado.ventanilla &&
+                       existente.horaTimestamp === nuevoLlamado.horaTimestamp // ✅ CRÍTICO para detectar re-llamados
         );
-        
+
         if (!existeAntes) {
-          console.log('[PantallaEnhanced] NUEVO TURNO:', nuevoLlamado.ticket, 'Vent:', nuevoLlamado.ventanilla);
+          console.log('[PantallaEnhanced] NUEVO TURNO:', nuevoLlamado.ticket, 'Vent:', nuevoLlamado.ventanilla, 'Timestamp:', nuevoLlamado.horaTimestamp);
         }
-        
+
         return !existeAntes;
       });
 
       console.log('[PantallaEnhanced] Total NUEVOS:', nuevosLlamados.length);
 
-      // Anunciar cada turno nuevo con delay entre ellos
-      if (nuevosLlamados.length > 0) {
-        console.log('[PantallaEnhanced] ANUNCIANDO', nuevosLlamados.length, 'turno(s)');
-        nuevosLlamados.forEach((llamado, index) => {
+      // ✅ NO anunciar en la primera carga (turnos antiguos del historial)
+      // Solo anunciar cuando ya hay datos previos y llega un turno realmente nuevo
+      if (nuevosLlamados.length > 0 && !esPrimeraCargaRef.current) {
+        const turnoMasReciente = nuevosLlamados[0]; // Solo el primer turno nuevo
+
+        // ✅ CRÍTICO: Solo anunciar si está en estado "Llamando", NO si ya está "Atendido"
+        if (turnoMasReciente.estado === 'Llamando') {
+          console.log('[PantallaEnhanced] 🔊 ANUNCIANDO turno más reciente:', turnoMasReciente.ticket, '- Estado:', turnoMasReciente.estado);
           setTimeout(() => {
-            console.log('[PantallaEnhanced] Anunciando:', llamado.ticket);
-            anunciarTurno(llamado);
-          }, index * 3000); // 3 segundos entre cada anuncio
-        });
+            anunciarTurno(turnoMasReciente);
+          }, 100);
+        } else {
+          console.log('[PantallaEnhanced] ⏭️ Turno nuevo pero ya está', turnoMasReciente.estado, '- NO anunciar:', turnoMasReciente.ticket);
+        }
+      } else if (esPrimeraCargaRef.current) {
+        console.log('[PantallaEnhanced] 🔇 Primera carga - NO anunciar turnos del historial');
+        esPrimeraCargaRef.current = false; // Marcar que ya no es la primera carga
       }
-      
+
+      // El backend ya devuelve el historial ordenado y limitado a 10 turnos
+      console.log('[PantallaEnhanced] Historial recibido del backend:', data.length, 'turnos');
       setLlamados(data);
     } catch (error) {
       console.error('Error cargando datos:', error);
@@ -377,11 +386,97 @@ export default function PantallaEsperaEnhanced({ disableVoice = false }: Pantall
     }
   }, [currentMedia]);
 
-  const horaActual = new Date().toLocaleTimeString('es-ES', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  });
+  // Suscripción a SignalR para actualizaciones en tiempo real
+  useEffect(() => {
+    let hubClient: any = null;
+
+    const connectSignalR = async () => {
+      try {
+        console.log('[PantallaEnhanced] 🔌 Conectando a SignalR...');
+        const { createTurnosHubClient } = await import('../../realtime/turnosHub.client');
+
+        hubClient = createTurnosHubClient({
+          onTicketLlamado: (data) => {
+            console.log('[PantallaEnhanced] 📞 Turno llamado via SignalR:', data);
+
+            // Crear el nuevo turno con estado "Llamando"
+            const nuevoTurno: TicketLlamadoDto = {
+              ticket: data.codigo,
+              servicio: data.servicio,
+              ventanilla: data.ventanilla,
+              hora: data.hora,
+              horaTimestamp: new Date(data.hora).getTime(),
+              estado: 'Llamando'
+            };
+
+            // Anunciar el turno inmediatamente
+            anunciarTurno(nuevoTurno);
+
+            // Actualizar la lista de turnos
+            setLlamados(prevLlamados => {
+              // Verificar si el turno ya existe
+              const existe = prevLlamados.some(
+                t => t.ticket === nuevoTurno.ticket && t.ventanilla === nuevoTurno.ventanilla
+              );
+
+              if (!existe) {
+                // Agregar al inicio y mantener solo los últimos 6
+                return [nuevoTurno, ...prevLlamados].slice(0, 6);
+              }
+
+              return prevLlamados;
+            });
+          },
+          onTicketEstado: (data) => {
+            console.log('[PantallaEnhanced] 🔄 Estado de ticket actualizado via SignalR:', data);
+
+            // Si el ticket fue finalizado, actualizar su estado en la lista
+            if (data.estado === 'Atendido' || data.estado === 'Finalizado') {
+              setLlamados(prevLlamados =>
+                prevLlamados.map(t =>
+                  t.ticket === data.codigo
+                    ? { ...t, estado: 'Atendido' }
+                    : t
+                )
+              );
+            }
+          }
+        });
+
+        // Conectar y unirse al grupo de pantalla pública
+        await hubClient.joinPantalla();
+        console.log('[PantallaEnhanced] ✅ Conectado a SignalR');
+      } catch (error) {
+        console.error('[PantallaEnhanced] ❌ Error conectando a SignalR:', error);
+      }
+    };
+
+    connectSignalR();
+
+    return () => {
+      if (hubClient) {
+        console.log('[PantallaEnhanced] 🔌 Desconectando SignalR...');
+        hubClient.stop().catch((err: any) =>
+          console.error('[PantallaEnhanced] Error al detener SignalR:', err)
+        );
+      }
+    };
+  }, []); // Solo ejecutar una vez al montar
+
+  // Actualizar hora cada segundo
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setHoraActual(
+        new Date().toLocaleTimeString('es-ES', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        })
+      );
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const fechaActual = new Date().toLocaleDateString('es-ES', {
     weekday: 'long',
@@ -392,11 +487,27 @@ export default function PantallaEsperaEnhanced({ disableVoice = false }: Pantall
 
   const formatHora = (fechaStr: string | null | undefined) => {
     if (!fechaStr) return '--:--';
-    const fecha = new Date(fechaStr);
-    return fecha.toLocaleTimeString('es-ES', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+
+    // Si ya es un string de hora formateado (ej: "14:30"), devolverlo directamente
+    if (/^\d{1,2}:\d{2}$/.test(fechaStr)) {
+      return fechaStr;
+    }
+
+    // Si no, intentar parsearlo como fecha
+    try {
+      const fecha = new Date(fechaStr);
+      if (isNaN(fecha.getTime())) {
+        console.warn('[PantallaEnhanced] Fecha inválida:', fechaStr);
+        return '--:--';
+      }
+      return fecha.toLocaleTimeString('es-ES', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      console.error('[PantallaEnhanced] Error parseando fecha:', error);
+      return '--:--';
+    }
   };
 
   return (
@@ -404,7 +515,7 @@ export default function PantallaEsperaEnhanced({ disableVoice = false }: Pantall
       {/* Header */}
       <div className="pantalla-header">
         <div className="header-content">
-          <h1>ALCALDÍA MUNICIPAL</h1>
+          <h1>ALCALDÍA MUNICIPAL DE SONSONATE OESTE</h1>
           <p className="header-subtitle">Sistema de Gestión de Turnos</p>
           
           <div className="status-bar">
@@ -423,40 +534,8 @@ export default function PantallaEsperaEnhanced({ disableVoice = false }: Pantall
               <span>{horaActual}</span>
             </div>
 
-            <button 
-              onClick={() => setVoiceEnabled(!voiceEnabled)}
-              className="status-item"
-              style={{ 
-                cursor: 'pointer', 
-                background: voiceEnabled ? 'var(--success-glass)' : 'var(--glass-bg)',
-                color: voiceEnabled ? 'var(--success)' : 'var(--muted)'
-              }}
-              title={voiceEnabled ? 'Desactivar anuncios de voz' : 'Activar anuncios de voz'}
-            >
-              <span style={{ fontSize: '20px' }}>🔊</span>
-              <span>{voiceEnabled ? 'Voz ON' : 'Voz OFF'}</span>
-            </button>
-
-            <button 
-              onClick={() => {
-                lastAnnouncedRef.current.clear();
-                anunciarTurno({ 
-                  ticket: 'TEST01', 
-                  ventanilla: '1', 
-                  servicio: 'Prueba', 
-                  hora: '12:00' 
-                });
-              }}
-              className="status-item"
-              style={{ cursor: 'pointer', background: 'var(--info-glass)' }}
-              title="Probar síntesis de voz"
-            >
-              <span style={{ fontSize: '20px' }}>🎤</span>
-              <span>Probar</span>
-            </button>
-
-            <button 
-              onClick={cargarDatos} 
+            <button
+              onClick={cargarDatos}
               className="status-item"
               style={{ cursor: 'pointer', background: 'var(--glass-bg)' }}
               disabled={loading}
@@ -492,38 +571,73 @@ export default function PantallaEsperaEnhanced({ disableVoice = false }: Pantall
               <p>Los turnos aparecerán aquí cuando sean llamados</p>
             </div>
           ) : (
-            llamados.map((turno, index) => (
-              <div 
-                key={`${turno.ticket}-${index}`} 
-                className="turno-card llamando"
-                style={{ animationDelay: `${index * 0.1}s` }}
-              >
-                <div className="turno-header">
-                  <div className="turno-codigo">{turno.ticket}</div>
-                  <div className="turno-estado llamando">
-                    LLAMANDO
-                  </div>
-                </div>
+            <>
+              {/* Solo el último turno llamando (el más reciente) se muestra grande */}
+              {(() => {
+                const turnoActual = llamados.find(t => t.estado === 'Llamando');
 
-                <div className="turno-body">
-                  <div className="turno-info">
-                    <Monitor />
-                    <span className="info-label">Servicio:</span>
-                    <span className="info-value">{turno.servicio || 'Sin especificar'}</span>
-                  </div>
+                if (turnoActual) {
+                  return (
+                    <div className="turno-card llamando">
+                      <div className="turno-header">
+                        <div className="turno-codigo">{turnoActual.ticket}</div>
+                        <div className="turno-estado llamando">
+                          LLAMANDO
+                        </div>
+                      </div>
 
-                  <div className="turno-info">
-                    <Clock />
-                    <span className="info-label">Hora llamado:</span>
-                    <span className="info-value">{formatHora(turno.hora)}</span>
-                  </div>
+                      <div className="turno-body">
+                        <div className="turno-info">
+                          <Monitor />
+                          <span className="info-label">Servicio:</span>
+                          <span className="info-value">{turnoActual.servicio || 'Sin especificar'}</span>
+                        </div>
 
-                  <div className="ventanilla-badge">
-                    🪟 VENTANILLA {turno.ventanilla}
-                  </div>
-                </div>
-              </div>
-            ))
+                        <div className="turno-info">
+                          <Clock />
+                          <span className="info-label">Hora llamado:</span>
+                          <span className="info-value">{formatHora(turnoActual.hora)}</span>
+                        </div>
+
+                        <div className="ventanilla-badge">
+                          {turnoActual.ventanilla.toUpperCase()}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
+              {/* Historial: todos los demás turnos (los que no son el primero "Llamando") */}
+              {(() => {
+                const turnoActual = llamados.find(t => t.estado === 'Llamando');
+                const historial = llamados.filter(t =>
+                  t !== turnoActual // Excluir el turno actual que se muestra en grande
+                );
+
+                if (historial.length > 0) {
+                  return (
+                    <div className="historial-section">
+                      <h3 className="historial-title">Historial reciente</h3>
+                      <div className="historial-grid">
+                        {historial.map((turno, index) => (
+                          <div
+                            key={`hist-${turno.ticket}-${index}`}
+                            className="turno-card-small atendido"
+                          >
+                            <div className="small-ticket">{turno.ticket}</div>
+                            <div className="small-ventanilla">{turno.ventanilla}</div>
+                            <div className="small-hora">{formatHora(turno.hora)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+            </>
           )}
         </div>
 

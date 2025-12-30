@@ -583,6 +583,37 @@ body:has(.operador-container) {
   cursor: not-allowed;
 }
 
+/* Botón No se presentó */
+.btn-warning,
+.btn-omitir {
+  background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
+  color: var(--white);
+  font-family: var(--font-body);
+  font-weight: 700;
+  border: none;
+  padding: 0.875rem 1rem;
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4);
+}
+
+.btn-omitir:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(245, 158, 11, 0.5);
+  background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
+}
+
+.btn-omitir:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .btn-finalizar {
   background: var(--success);
   color: var(--white);
@@ -661,6 +692,9 @@ body:has(.operador-container) {
   border-radius: 10px;
   border-left: 4px solid var(--yellow-main);
   transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
 }
 
 .turno-item:hover {
@@ -670,16 +704,18 @@ body:has(.operador-container) {
 
 .turno-codigo {
   font-family: var(--font-heading);
-  font-size: 1.4rem;
-  font-weight: 700;
-  color: var(--yellow-main);
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: #FFD700;
   margin-bottom: 0.25rem;
+  letter-spacing: 2px;
 }
 
 .turno-info {
   font-family: var(--font-body);
-  font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 500;
 }
 
 .no-turnos {
@@ -1086,4 +1122,71 @@ body:has(.operador-container) {
     padding: 0.75rem;
     margin: 0.75rem 0;
   }
+}
+
+/* ============================================================
+   ANIMACIONES Y ESTADOS DE CARGA
+   ============================================================ */
+
+/* Animación de rotación para el icono */
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.rotating {
+  animation: rotate 1s linear infinite;
+}
+
+/* Botón en estado de carga */
+button.loading {
+  opacity: 0.8;
+  cursor: wait !important;
+  position: relative;
+}
+
+button.loading::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: inherit;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Texto de carga */
+.loading-text {
+  margin-top: 1rem;
+  font-size: 0.9rem;
+  color: var(--yellow-light);
+  font-weight: 500;
+  text-align: center;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Deshabilitar interacción mientras carga */
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+button.loading:disabled {
+  cursor: wait !important;
+  opacity: 0.8;
 }

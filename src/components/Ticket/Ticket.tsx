@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Filter, Eye, Clock, CheckCircle, Calendar, CalendarDays, List } from 'lucide-react';
+import { Search, Filter, Eye, Calendar, CalendarDays, List } from 'lucide-react';
 import { TicketAPI, type TicketDTO } from '../../services/ticket.service';
 import { EstadoTicketAPI, type EstadoTicketDTO } from '../../services/estado-ticket.service';
 
@@ -97,15 +97,6 @@ const TicketCrud: React.FC = () => {
     }
   };
 
-  const idEstadoPorNombre = (nombre: string) =>
-    estados.find((e) => (e.nombre ?? '').toLowerCase() === nombre.toLowerCase())?.id;
-
-  const handleCambiarEstado = async (idTicket: number, idEstadoDestino?: number) => {
-    if (!idEstadoDestino) return;
-    await TicketAPI.actualizar(idTicket, { idEstado: idEstadoDestino });
-    await fetchAll();
-  };
-
   const getEstadoBadge = (estado?: { id: number; nombre: string }) => {
     const nombre = (estado?.nombre ?? '').toLowerCase();
     if (nombre.includes('pend')) return { text: estado?.nombre ?? 'Pendiente', class: 'warn' };
@@ -131,8 +122,6 @@ const TicketCrud: React.FC = () => {
   });
 
   const stats = getEstadoStats();
-  const idEnAtencion = idEstadoPorNombre('En atención');
-  const idAtendido = idEstadoPorNombre('Atendido');
 
   return (
     <div>
@@ -332,13 +321,13 @@ const TicketCrud: React.FC = () => {
                 <th>Fecha</th>
                 <th>Ventanilla</th>
                 <th>Estado</th>
-                <th style={{ width: 140, textAlign: 'center' }}>Acciones</th>
+                
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: 40 }}>
+                  <td colSpan={5} style={{ textAlign: 'center', padding: 40 }}>
                     Cargando tickets...
                   </td>
                 </tr>
@@ -347,14 +336,14 @@ const TicketCrud: React.FC = () => {
                   <td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
                     {tickets.length === 0 ? (
                       <div>
-                        <div style={{ fontSize: 18, marginBottom: 8 }}>📋 No hay tickets en la base de datos</div>
+                        <div style={{ fontSize: 18, marginBottom: 8 }}>No hay tickets en la base de datos</div>
                         <div style={{ fontSize: 14 }}>
                           Los tickets aparecerán aquí cuando se generen desde el kiosko
                         </div>
                       </div>
                     ) : (
                       <div>
-                        <div style={{ fontSize: 18, marginBottom: 8 }}>🔍 No se encontraron tickets</div>
+                        <div style={{ fontSize: 18, marginBottom: 8 }}>No se encontraron tickets</div>
                         <div style={{ fontSize: 14 }}>
                           Intenta cambiar los filtros o términos de búsqueda
                         </div>
@@ -365,10 +354,6 @@ const TicketCrud: React.FC = () => {
               ) : (
                 filteredTickets.map((ticket) => {
                   const estadoBadge = getEstadoBadge(ticket.estado);
-                  const enAtencion = idEnAtencion;
-                  const atendido = idAtendido;
-                  const puedeAtender = ticket.estado?.id !== undefined && ticket.estado?.id !== enAtencion && !!enAtencion;
-                  const puedeFinalizar = ticket.estado?.id === enAtencion && !!atendido;
 
                   const rawFecha: string | undefined =
                     (ticket as any).fechaCreacion ?? (ticket as any).fecha_creacion;
@@ -394,39 +379,7 @@ const TicketCrud: React.FC = () => {
                       <td>
                         <span className={`status pill ${estadoBadge.class}`}>{estadoBadge.text}</span>
                       </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
-                          <button
-                            onClick={() => { setSelectedTicket(ticket); setShowDetailModal(true); }}
-                            className="icon-btn"
-                            title="Ver detalles"
-                          >
-                            <Eye size={14} />
-                          </button>
-
-                          {puedeAtender && (
-                            <button
-                              onClick={() => handleCambiarEstado(ticket.id, enAtencion)}
-                              className="icon-btn"
-                              title="Marcar En atención"
-                              style={{ color: 'var(--primary)' }}
-                            >
-                              <Clock size={14} />
-                            </button>
-                          )}
-
-                          {puedeFinalizar && (
-                            <button
-                              onClick={() => handleCambiarEstado(ticket.id, atendido)}
-                              className="icon-btn"
-                              title="Marcar Atendido"
-                              style={{ color: 'var(--success)' }}
-                            >
-                              <CheckCircle size={14} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
+                      
                     </tr>
                   );
                 })
@@ -466,7 +419,7 @@ const TicketCrud: React.FC = () => {
                         marginBottom: 8,
                       }}
                     >
-                      🎫 Código del Ticket
+                      Código del Ticket
                     </div>
                     <div
                       style={{
@@ -499,7 +452,7 @@ const TicketCrud: React.FC = () => {
                           marginBottom: 8,
                         }}
                       >
-                        🛎️ Servicio
+                        Servicio
                       </label>
                       <div style={{ fontSize: 16, fontWeight: 500, color: 'var(--text)' }}>
                         {selectedTicket.servicio?.nombre || 'No especificado'}
@@ -524,7 +477,7 @@ const TicketCrud: React.FC = () => {
                           marginBottom: 8,
                         }}
                       >
-                        📊 Estado Actual
+                        Estado Actual
                       </label>
                       <div>
                         <span className={`status pill ${getEstadoBadge(selectedTicket.estado).class}`}>
@@ -553,7 +506,7 @@ const TicketCrud: React.FC = () => {
                           marginBottom: 8,
                         }}
                       >
-                        📅 Fecha de Creación
+                        Fecha de Creación
                       </label>
                       <div style={{ fontSize: 14, color: 'var(--text)' }}>
                         {formatFechaLocal((selectedTicket as any).fechaCreacion ?? (selectedTicket as any).fecha_creacion)}
@@ -578,75 +531,12 @@ const TicketCrud: React.FC = () => {
                           marginBottom: 8,
                         }}
                       >
-                        🪟 Ventanilla Asignada
+                        Ventanilla Asignada
                       </label>
                       <div style={{ fontSize: 14, color: 'var(--text)' }}>
                         {selectedTicket.turno?.idVentanilla ? `Ventanilla ${selectedTicket.turno.idVentanilla}` : 'No asignada'}
                       </div>
                     </div>
-                  </div>
-
-                  {/* Action buttons */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      gap: 16,
-                      paddingTop: 24,
-                      borderTop: '2px solid var(--border)',
-                    }}
-                  >
-                    {idEnAtencion && selectedTicket.estado?.id !== idEnAtencion && (
-                      <button
-                        onClick={() => {
-                          handleCambiarEstado(selectedTicket.id, idEnAtencion);
-                          setShowDetailModal(false);
-                        }}
-                        className="btn btn-primary"
-                        style={{
-                          flex: 1,
-                          padding: '14px 20px',
-                          fontWeight: 600,
-                          borderRadius: 10,
-                          background: 'linear-gradient(135deg, var(--primary), var(--primary-600))',
-                          border: 'none',
-                          color: 'white',
-                          boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
-                          transition: 'all 0.2s ease',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <Clock size={18} style={{ marginRight: 8 }} />
-                        🎯 Atender Ticket
-                      </button>
-                    )}
-                    {idAtendido && selectedTicket.estado?.id === idEnAtencion && (
-                      <button
-                        onClick={() => {
-                          handleCambiarEstado(selectedTicket.id, idAtendido);
-                          setShowDetailModal(false);
-                        }}
-                        className="btn"
-                        style={{
-                          flex: 1,
-                          padding: '14px 20px',
-                          fontWeight: 600,
-                          borderRadius: 10,
-                          background: 'linear-gradient(135deg, var(--success), #059669)',
-                          border: 'none',
-                          color: 'white',
-                          boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                          transition: 'all 0.2s ease',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <CheckCircle size={18} style={{ marginRight: 8 }} />
-                        ✅ Finalizar Ticket
-                      </button>
-                    )}
                   </div>
                 </div>
               </div>

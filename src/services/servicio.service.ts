@@ -31,13 +31,25 @@ function nServicio(d: any): ServicioDTO {
 
   // Intentar obtener activo de múltiples campos posibles
   const activoRaw = d.activo ?? d.Activo ?? d.estado ?? d.Estado ?? d.EsActivo ?? d.esActivo ?? d.Active ?? d.active ?? d.IsActive ?? d.isActive;
-  console.log('[nServicio] activoRaw encontrado:', activoRaw);
+  console.log('[nServicio] activoRaw encontrado:', activoRaw, 'tipo:', typeof activoRaw);
 
   const activoValue = parseActivo(activoRaw);
   console.log('[nServicio] activoValue parseado:', activoValue);
 
-  // Si no se pudo parsear, default a true para nuevos, pero loguear para debug
-  const finalActivo = activoValue !== null ? activoValue : true;
+  // IMPORTANTE: Si parseActivo devuelve null, significa que el valor no se pudo parsear
+  // En ese caso, verificar si hay un campo booleano directo antes de usar default
+  let finalActivo: boolean;
+  if (activoValue !== null) {
+    finalActivo = activoValue;
+  } else if (typeof d.activo === 'boolean') {
+    finalActivo = d.activo;
+  } else if (typeof d.Activo === 'boolean') {
+    finalActivo = d.Activo;
+  } else {
+    // Solo como último recurso usar true por defecto
+    console.warn('[nServicio] No se encontró valor válido para activo, usando default true');
+    finalActivo = true;
+  }
   console.log('[nServicio] finalActivo:', finalActivo);
 
   return {
@@ -92,23 +104,37 @@ export const ServicioAPI = {
   },
 
   async crear(input: CrearServicioInput): Promise<ServicioDTO> {
-    // Por defecto siempre activo al crear
-    const activoValue = input.activo !== false;
+    // Respetar el valor exacto que viene del formulario
+    // Si es false, debe guardarse como false (inactivo)
+    // Si es true, debe guardarse como true (activo)
+    // Solo usar default true si no viene definido (undefined)
+    const activoValue = input.activo === false ? false : (input.activo === true ? true : true);
+
+    console.log('[ServicioAPI.crear] Input recibido:', input);
+    console.log('[ServicioAPI.crear] Valor activo calculado:', activoValue);
+
+    const payload = {
+      Nombre: input.nombre?.trim(),
+      nombre: input.nombre?.trim(),
+      Descripcion: input.descripcion ?? null,
+      descripcion: input.descripcion ?? null,
+      // Enviar en todos los formatos posibles para compatibilidad con backend
+      activo: activoValue,
+      Activo: activoValue,
+      Estado: activoValue ? "Activo" : "Inactivo",
+      estado: activoValue ? "activo" : "inactivo",
+    };
+
+    console.log('[ServicioAPI.crear] Payload a enviar:', payload);
+
     const raw = await fetch(`${API}/Nuevo`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        Nombre: input.nombre?.trim(),
-        nombre: input.nombre?.trim(),
-        Descripcion: input.descripcion ?? null,
-        descripcion: input.descripcion ?? null,
-        // Enviar en todos los formatos posibles para compatibilidad con backend
-        activo: activoValue,
-        Activo: activoValue,
-        Estado: activoValue ? "Activo" : "Inactivo",
-        estado: activoValue ? "activo" : "inactivo",
-      }),
+      body: JSON.stringify(payload),
     }).then((r) => handleJSON<any>(r));
+
+    console.log('[ServicioAPI.crear] Respuesta del backend:', raw);
+
     return nServicio(raw);
   },
 
