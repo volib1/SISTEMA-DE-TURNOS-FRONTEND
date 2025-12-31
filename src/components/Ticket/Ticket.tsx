@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Filter, Eye, Calendar, CalendarDays, List } from 'lucide-react';
+import { Search, Calendar, CalendarDays, List } from 'lucide-react';
 import { TicketAPI, type TicketDTO } from '../../services/ticket.service';
 import { EstadoTicketAPI, type EstadoTicketDTO } from '../../services/estado-ticket.service';
 
@@ -7,10 +7,13 @@ const TicketCrud: React.FC = () => {
   const [tickets, setTickets] = useState<TicketDTO[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedEstado, setSelectedEstado] = useState<number | ''>('');
   const [selectedTicket, setSelectedTicket] = useState<TicketDTO | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [estados, setEstados] = useState<EstadoTicketDTO[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+  const [fechaInicio, setFechaInicio] = useState('');
+  const [fechaFin, setFechaFin] = useState('');
 
   const getFechaFromTicket = (t: TicketDTO): Date | null => {
     const raw = (t as any).fechaCreacion ?? (t as any).fecha_creacion;
@@ -117,9 +120,40 @@ const TicketCrud: React.FC = () => {
     const matchesSearch =
       (ticket.codigo ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (ticket.servicio?.nombre ?? '').toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesEstado = selectedEstado === '' || ticket.estado?.id === selectedEstado;
-    return matchesSearch && matchesEstado;
+
+    // Filtro por fecha
+    let matchesFecha = true;
+    if (fechaInicio || fechaFin) {
+      const ticketDate = getFechaFromTicket(ticket);
+      if (ticketDate) {
+        if (fechaInicio) {
+          const inicioDate = new Date(fechaInicio);
+          inicioDate.setHours(0, 0, 0, 0);
+          if (ticketDate < inicioDate) matchesFecha = false;
+        }
+        if (fechaFin) {
+          const finDate = new Date(fechaFin);
+          finDate.setHours(23, 59, 59, 999);
+          if (ticketDate > finDate) matchesFecha = false;
+        }
+      } else {
+        matchesFecha = false;
+      }
+    }
+
+    return matchesSearch && matchesFecha;
   });
+
+  // Paginación
+  const totalPages = Math.ceil(filteredTickets.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedTickets = filteredTickets.slice(startIndex, endIndex);
+
+  // Reset page cuando cambian los filtros
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, fechaInicio, fechaFin]);
 
   const stats = getEstadoStats();
 
@@ -284,29 +318,52 @@ const TicketCrud: React.FC = () => {
             />
           </div>
 
-          <div style={{ position: 'relative', width: 220 }}>
-            <Filter
-              size={16}
-              style={{
-                position: 'absolute',
-                left: 12,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: 'var(--muted)',
+          <input
+            type="date"
+            value={fechaInicio}
+            onChange={(e) => setFechaInicio(e.target.value)}
+            className="input"
+            style={{ width: 200 }}
+          />
+
+          <input
+            type="date"
+            value={fechaFin}
+            onChange={(e) => setFechaFin(e.target.value)}
+            className="input"
+            style={{ width: 200 }}
+          />
+
+          {(fechaInicio || fechaFin) && (
+            <button
+              onClick={() => {
+                setFechaInicio('');
+                setFechaFin('');
               }}
-            />
-            <select
-              value={selectedEstado}
-              onChange={(e) => setSelectedEstado(e.target.value === '' ? '' : Number(e.target.value))}
-              className="input"
-              style={{ paddingLeft: 40, appearance: 'none' }}
+              style={{
+                padding: '8px 16px',
+                fontSize: '14px',
+                fontWeight: 600,
+                borderRadius: '8px',
+                background: '#f8fafc',
+                border: '2px solid #e2e8f0',
+                color: '#64748b',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                fontFamily: "'Times New Roman', Georgia, serif",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#cbd5e1';
+                e.currentTarget.style.background = '#f1f5f9';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#e2e8f0';
+                e.currentTarget.style.background = '#f8fafc';
+              }}
             >
-              <option value="">Todos los estados</option>
-              {estados.map((e) => (
-                <option key={e.id} value={e.id}>{e.nombre}</option>
-              ))}
-            </select>
-          </div>
+              Limpiar fechas
+            </button>
+          )}
         </div>
       </div>
 
@@ -352,7 +409,7 @@ const TicketCrud: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredTickets.map((ticket) => {
+                paginatedTickets.map((ticket) => {
                   const estadoBadge = getEstadoBadge(ticket.estado);
 
                   const rawFecha: string | undefined =
@@ -387,6 +444,78 @@ const TicketCrud: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Paginación */}
+        {filteredTickets.length > itemsPerPage && (
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginTop: '20px',
+            padding: '16px 20px',
+            background: 'var(--surface)',
+            borderRadius: '12px',
+            border: '2px solid var(--border)',
+          }}>
+            <div style={{ color: 'var(--muted)', fontSize: '14px' }}>
+              Mostrando {startIndex + 1} - {Math.min(endIndex, filteredTickets.length)} de {filteredTickets.length} tickets
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  borderRadius: '8px',
+                  background: currentPage === 1 ? 'var(--surface)' : '#E9C46A',
+                  border: '2px solid',
+                  borderColor: currentPage === 1 ? 'var(--border)' : '#E9C46A',
+                  color: currentPage === 1 ? 'var(--muted)' : '#0A2342',
+                  cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s ease',
+                  fontFamily: "'Times New Roman', Georgia, serif",
+                }}
+              >
+                Anterior
+              </button>
+
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '0 12px',
+                color: '#0A2342',
+                fontWeight: 600,
+                fontSize: '14px',
+                fontFamily: "'Times New Roman', Georgia, serif",
+              }}>
+                Página {currentPage} de {totalPages}
+              </div>
+
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  borderRadius: '8px',
+                  background: currentPage === totalPages ? 'var(--surface)' : '#E9C46A',
+                  border: '2px solid',
+                  borderColor: currentPage === totalPages ? 'var(--border)' : '#E9C46A',
+                  color: currentPage === totalPages ? 'var(--muted)' : '#0A2342',
+                  cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s ease',
+                  fontFamily: "'Times New Roman', Georgia, serif",
+                }}
+              >
+                Siguiente
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Detail Modal */}

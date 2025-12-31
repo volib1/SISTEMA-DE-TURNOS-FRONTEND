@@ -19,6 +19,8 @@ const ServicioCrud: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   const [formData, setFormData] = useState<CrearServicioInput | ActualizarServicioInput>({
     nombre: '',
     descripcion: '',
@@ -128,6 +130,20 @@ const ServicioCrud: React.FC = () => {
       ),
     [servicios, searchTerm]
   );
+
+  // Paginación
+  const totalPages = Math.ceil(filteredServicios.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedServicios = useMemo(
+    () => filteredServicios.slice(startIndex, endIndex),
+    [filteredServicios, startIndex, endIndex]
+  );
+
+  // Reset page cuando cambia el filtro
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   const activos = useMemo(() => servicios.filter((s) => s.activo).length, [servicios]);
   const inactivos = useMemo(
@@ -421,7 +437,7 @@ const ServicioCrud: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredServicios.map((servicio) => (
+                paginatedServicios.map((servicio) => (
                   <tr key={servicio.id}>
                     <td>
                       <div
@@ -485,6 +501,78 @@ const ServicioCrud: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Paginación */}
+        {filteredServicios.length > itemsPerPage && (
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginTop: '20px',
+            padding: '16px 20px',
+            background: 'var(--surface)',
+            borderRadius: '12px',
+            border: '2px solid var(--border)',
+          }}>
+            <div style={{ color: 'var(--muted)', fontSize: '14px' }}>
+              Mostrando {startIndex + 1} - {Math.min(endIndex, filteredServicios.length)} de {filteredServicios.length} servicios
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  borderRadius: '8px',
+                  background: currentPage === 1 ? 'var(--surface)' : '#E9C46A',
+                  border: '2px solid',
+                  borderColor: currentPage === 1 ? 'var(--border)' : '#E9C46A',
+                  color: currentPage === 1 ? 'var(--muted)' : '#0A2342',
+                  cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s ease',
+                  fontFamily: "'Times New Roman', Georgia, serif",
+                }}
+              >
+                Anterior
+              </button>
+
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '0 12px',
+                color: '#0A2342',
+                fontWeight: 600,
+                fontSize: '14px',
+                fontFamily: "'Times New Roman', Georgia, serif",
+              }}>
+                Página {currentPage} de {totalPages}
+              </div>
+
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  borderRadius: '8px',
+                  background: currentPage === totalPages ? 'var(--surface)' : '#E9C46A',
+                  border: '2px solid',
+                  borderColor: currentPage === totalPages ? 'var(--border)' : '#E9C46A',
+                  color: currentPage === totalPages ? 'var(--muted)' : '#0A2342',
+                  cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s ease',
+                  fontFamily: "'Times New Roman', Georgia, serif",
+                }}
+              >
+                Siguiente
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modal */}
