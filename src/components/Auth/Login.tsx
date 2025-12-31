@@ -57,7 +57,30 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onError }) => {
       onLoginSuccess(response);
     } catch (err: any) {
       console.error('[Login] Error al iniciar sesión:', err);
-      const errorMessage = err.message || 'Error al iniciar sesión. Verifica tus credenciales.';
+
+      // Extraer mensaje de error específico
+      let errorMessage = 'Error al iniciar sesión';
+
+      if (err.message) {
+        const msg = err.message;
+
+        // Detectar tipo de error por código de estado o mensaje
+        if (msg.includes('401') || msg.toLowerCase().includes('credenciales') || msg.toLowerCase().includes('password')) {
+          errorMessage = 'Correo o contraseña incorrectos';
+        } else if (msg.includes('404') || msg.toLowerCase().includes('no encontrado')) {
+          errorMessage = 'Usuario no encontrado';
+        } else if (msg.includes('403') || msg.toLowerCase().includes('acceso denegado')) {
+          errorMessage = 'Acceso denegado. Usuario inactivo o sin permisos';
+        } else if (msg.includes('500')) {
+          errorMessage = 'Error del servidor. Intenta más tarde';
+        } else if (msg.toLowerCase().includes('network') || msg.toLowerCase().includes('fetch')) {
+          errorMessage = 'Error de conexión. Verifica tu conexión a internet';
+        } else {
+          // Usar el mensaje del servidor tal cual si no coincide con ningún patrón
+          errorMessage = msg.replace(/^Error \d+:?\s*/i, '');
+        }
+      }
+
       setError(errorMessage);
       if (onError) {
         onError(errorMessage);

@@ -220,53 +220,68 @@ export function useOperador({ idVentanilla, idEmpleado, autoRefresh = true, refr
   }, [turnoActual, idEmpleado, cargarProximosTurnos]);
 
   /**
-   * Auto-refresh cada X segundos - SOLO CARGA DATOS, NO LLAMA TURNOS
-   */
-  useEffect(() => {
-    if (!autoRefresh) return;
-
-    console.log('[useOperador] ⚙️ Auto-refresh habilitado (solo carga datos, NO llama turnos automáticamente)');
-
-    const interval = setInterval(() => {
-      console.log('[useOperador] 🔄 Auto-refresh: Cargando datos (sin llamar turnos)...');
-      cargarDatos();
-    }, refreshInterval);
-
-    return () => clearInterval(interval);
-  }, [autoRefresh, refreshInterval, cargarDatos]);
-
-  /**
    * Suscripción a eventos SignalR en tiempo real
+   * Reemplaza el polling periódico por actualizaciones en tiempo real
    */
   useEffect(() => {
-    import('../realtime/turnosHub.client').then(({ createTurnosHubClient }) => {
-      const hubConnection = createTurnosHubClient({
-        onTicketCreado: (data) => {
-          console.log('[useOperador] 🎫 Nuevo ticket creado:', data);
-          // Refrescar lista de tickets pendientes
-          cargarProximosTurnos();
-        },
-        onTurnoLlamado: (data) => {
-          console.log('[useOperador] 🔔 Turno llamado:', data);
-          // Refrescar datos para actualizar el estado
-          cargarDatos();
-        },
-        onTurnoFinalizado: (data) => {
-          console.log('[useOperador] ✅ Turno finalizado:', data);
-          // Refrescar datos
-          cargarDatos();
-        },
-      });
+    if (!idVentanilla) return;
 
-      hubConnection.start().catch((err) => {
+    let hubClient: any = null;
+
+    const connectSignalR = async () => {
+      try {
+        const { createTurnosHubClient } = await import('../realtime/turnosHub.client');
+
+        hubClient = createTurnosHubClient({
+          onTicketCreado: (data) => {
+            console.log('[useOperador] 🎫 Nuevo ticket creado en tiempo real:', data);
+            // Refrescar lista de tickets pendientes
+            cargarProximosTurnos();
+          },
+          onTicketLlamado: (data) => {
+            console.log('[useOperador] 🔔 Ticket llamado en tiempo real:', data);
+            // Refrescar datos para actualizar el estado
+            cargarDatos();
+          },
+          onTicketEstado: (data) => {
+            console.log('[useOperador] 📊 Estado de ticket actualizado:', data);
+            // Refrescar datos cuando cambia el estado de un ticket
+            cargarDatos();
+          },
+          onVentanillaJoined: (data) => {
+            console.log('[useOperador] ✅ Conectado a ventanilla:', data);
+          },
+          onError: (error) => {
+            console.error('[useOperador] ❌ Error de SignalR:', error);
+            setError(error.mensaje);
+          }
+        });
+
+        // Unirse a la ventanilla específica
+        if (idEmpleado) {
+          await hubClient.joinVentanillaByEmpleado(idEmpleado);
+        } else {
+          await hubClient.joinVentanilla(idVentanilla);
+        }
+
+        console.log('[useOperador] ✅ Conectado a SignalR - Ventanilla:', idVentanilla);
+      } catch (err) {
         console.error('[useOperador] ❌ Error conectando a SignalR:', err);
-      });
+        // Fallback: usar polling si SignalR falla
+        console.log('[useOperador] ⚠️ Usando polling como fallback');
+      }
+    };
 
-      return () => {
-        hubConnection.stop();
-      };
-    });
-  }, [cargarDatos, cargarProximosTurnos]);
+    connectSignalR();
+
+    return () => {
+      if (hubClient) {
+        hubClient.stop().catch((err: any) => {
+          console.error('[useOperador] Error al detener SignalR:', err);
+        });
+      }
+    };
+  }, [idVentanilla, idEmpleado, cargarDatos, cargarProximosTurnos]);
 
   /**
    * Carga inicial

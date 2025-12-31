@@ -14,6 +14,7 @@ export default function VentanillaOperador({ empleado, onLogout }: VentanillaOpe
   const [ventanillaNombre, setVentanillaNombre] = useState<string>(empleado?.ventanilla?.nombre || '');
   
   // Hook de operador - solo se activa cuando hay ventanilla seleccionada
+  // SignalR maneja las actualizaciones en tiempo real, sin necesidad de polling
   const {
     turnoActual,
     proximosTurnos,
@@ -28,7 +29,7 @@ export default function VentanillaOperador({ empleado, onLogout }: VentanillaOpe
   } = useOperador({
     idVentanilla: Number(ventanilla) || 0,
     idEmpleado: empleado?.id,
-    autoRefresh: !!ventanilla, // Solo auto-refresh si hay ventanilla seleccionada
+    autoRefresh: false, // Deshabilitado: SignalR maneja las actualizaciones en tiempo real
     refreshInterval: 5000
   });
 
