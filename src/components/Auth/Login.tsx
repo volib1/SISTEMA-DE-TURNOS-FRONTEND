@@ -141,7 +141,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onError }) => {
 
           {error && (
             <div className="error-message">
-              <span className="error-icon">⚠️</span>
               {error}
             </div>
           )}
