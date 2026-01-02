@@ -18,6 +18,7 @@ import {
   Plus
 } from 'lucide-react';
 import { MediaAPI, type MediaFileDTO, type MediaConfigDTO, type MediaUploadDTO } from '../../services/media.service';
+import { getMediaUrl } from '../../services/http';
 import '../../styles/AdminMultimedia.css';
 
 const AdminMultimedia: React.FC = () => {
@@ -27,6 +28,8 @@ const AdminMultimedia: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingFile, setEditingFile] = useState<MediaFileDTO | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Estados para upload
@@ -37,6 +40,13 @@ const AdminMultimedia: React.FC = () => {
     description: '',
     duration: 10,
     order: 1
+  });
+
+  // Estados para edición
+  const [editForm, setEditForm] = useState({
+    name: '',
+    description: '',
+    duration: 10
   });
 
   // Cargar datos iniciales
@@ -118,6 +128,37 @@ const AdminMultimedia: React.FC = () => {
     } catch (error) {
       console.error('Error cambiando estado:', error);
       setError('Error al cambiar el estado del archivo');
+    }
+  };
+
+  const handleOpenEdit = (file: MediaFileDTO) => {
+    setEditingFile(file);
+    setEditForm({
+      name: file.name,
+      description: file.description || '',
+      duration: file.duration || 10
+    });
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingFile) return;
+
+    try {
+      setLoading(true);
+      await MediaAPI.updateFile(editingFile.id, {
+        nombre: editForm.name,
+        descripcion: editForm.description,
+        duracion: editForm.duration
+      });
+      await loadMediaFiles();
+      setShowEditModal(false);
+      setEditingFile(null);
+    } catch (error) {
+      console.error('Error editando archivo:', error);
+      setError('Error al editar el archivo');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -322,10 +363,10 @@ const AdminMultimedia: React.FC = () => {
           <div key={file.id} className={`media-card ${!file.isActive ? 'inactive' : ''}`}>
             <div className="media-preview">
               {file.type === 'image' && (
-                <img src={file.url} alt={file.name} />
+                <img src={getMediaUrl(file.url)} alt={file.name} />
               )}
               {file.type === 'video' && (
-                <video src={file.url} muted>
+                <video src={getMediaUrl(file.url)} muted>
                   <track kind="captions" />
                 </video>
               )}
@@ -394,7 +435,7 @@ const AdminMultimedia: React.FC = () => {
                   </button>
                   
                   <button
-                    onClick={() => console.log('Edit:', file)}
+                    onClick={() => handleOpenEdit(file)}
                     className="action-btn edit"
                   >
                     <Edit size={16} />
@@ -664,6 +705,131 @@ const AdminMultimedia: React.FC = () => {
               >
                 <Save size={16} />
                 Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Edición */}
+      {showEditModal && editingFile && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <div className="modal-header">
+              <h2>Editar Archivo Multimedia</h2>
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditingFile(null);
+                }}
+                className="close-btn"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div className="edit-preview" style={{ marginBottom: '1.5rem' }}>
+                {editingFile.type === 'image' && (
+                  <img 
+                    src={getMediaUrl(editingFile.url)} 
+                    alt={editingFile.name}
+                    style={{ 
+                      maxWidth: '100%', 
+                      maxHeight: '200px', 
+                      objectFit: 'contain',
+                      borderRadius: '8px',
+                      border: '2px solid #E9C46A'
+                    }}
+                  />
+                )}
+                {editingFile.type === 'video' && (
+                  <video 
+                    src={getMediaUrl(editingFile.url)} 
+                    style={{ 
+                      maxWidth: '100%', 
+                      maxHeight: '200px',
+                      borderRadius: '8px',
+                      border: '2px solid #E9C46A'
+                    }}
+                    muted
+                  />
+                )}
+                {(editingFile.type === 'text' || editingFile.type === 'audio') && (
+                  <div style={{
+                    padding: '2rem',
+                    background: 'linear-gradient(135deg, #0A2342 0%, #132743 100%)',
+                    borderRadius: '8px',
+                    border: '2px solid #E9C46A',
+                    textAlign: 'center',
+                    color: '#E9C46A'
+                  }}>
+                    {getFileTypeIcon(editingFile.type)}
+                    <p style={{ margin: '0.5rem 0 0' }}>{editingFile.type === 'audio' ? 'Archivo de audio' : 'Contenido de texto'}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="form-section">
+                <div className="form-group">
+                  <label>Nombre</label>
+                  <input
+                    type="text"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm(prev => ({ 
+                      ...prev, 
+                      name: e.target.value 
+                    }))}
+                    placeholder="Nombre del archivo"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Descripción</label>
+                  <textarea
+                    value={editForm.description}
+                    onChange={(e) => setEditForm(prev => ({ 
+                      ...prev, 
+                      description: e.target.value 
+                    }))}
+                    placeholder="Descripción del archivo"
+                    rows={3}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Duración de visualización (segundos)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="300"
+                    value={editForm.duration}
+                    onChange={(e) => setEditForm(prev => ({ 
+                      ...prev, 
+                      duration: parseInt(e.target.value) || 10 
+                    }))}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditingFile(null);
+                }}
+                className="btn-secondary"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                className="btn-primary"
+                disabled={loading || !editForm.name.trim()}
+              >
+                <Save size={16} />
+                {loading ? 'Guardando...' : 'Guardar Cambios'}
               </button>
             </div>
           </div>

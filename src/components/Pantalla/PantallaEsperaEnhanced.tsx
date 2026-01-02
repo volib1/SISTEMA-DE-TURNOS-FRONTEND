@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { Monitor, Clock, Wifi, WifiOff, Calendar, Play, Pause, SkipForward, SkipBack, Image, RefreshCw } from 'lucide-react';
 import { PantallaFeedAPI } from '../../services/pantalla-feed.service';
 import { MediaAPI } from '../../services/media.service';
+import { getMediaUrl } from '../../services/http';
 import type { TicketLlamadoDto } from '../../services/pantalla-feed.service';
 import type { MediaFileDTO, MediaConfigDTO } from '../../services/media.service';
 import '../../styles/PantallaEspera.enhanced.css';
@@ -653,14 +654,14 @@ export default function PantallaEsperaEnhanced({ disableVoice = false }: Pantall
               </div>
             ) : currentMedia?.type === 'image' ? (
               <img
-                src={currentMedia.url}
+                src={getMediaUrl(currentMedia.url)}
                 alt={currentMedia.name}
                 style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
               />
             ) : currentMedia?.type === 'video' ? (
               <video
                 ref={videoRef}
-                src={currentMedia.url}
+                src={getMediaUrl(currentMedia.url)}
                 autoPlay
                 muted
                 style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}

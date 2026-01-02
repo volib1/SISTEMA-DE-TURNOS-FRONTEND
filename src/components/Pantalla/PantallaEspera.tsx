@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { RefreshCw, Monitor, Users, Clock, AlertCircle, Wifi, Calendar, Play, Pause, SkipForward, SkipBack, Image } from 'lucide-react';
 import { PantallaFeedAPI } from '../../services/pantalla-feed.service';
 import { MediaAPI } from '../../services/media.service';
+import { getMediaUrl } from '../../services/http';
 import type { TicketLlamadoDto } from '../../services/pantalla-feed.service';
 import type { MediaFileDTO, MediaConfigDTO } from '../../services/media.service';
 
@@ -530,7 +531,7 @@ export default function PantallaEspera({ disableVoice = false }: PantallaEsperaP
                 <>
                   {currentMedia.type === 'image' && (
                     <img
-                      src={currentMedia.url}
+                      src={getMediaUrl(currentMedia.url)}
                       alt={currentMedia.name}
                       style={{
                         width: '100%',
@@ -543,7 +544,7 @@ export default function PantallaEspera({ disableVoice = false }: PantallaEsperaP
                   {currentMedia.type === 'video' && (
                     <video
                       ref={videoRef}
-                      src={currentMedia.url}
+                      src={getMediaUrl(currentMedia.url)}
                       autoPlay
                       muted
                       loop

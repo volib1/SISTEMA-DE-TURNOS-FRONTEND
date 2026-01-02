@@ -13,6 +13,20 @@ export function normalizeRoot(rootFromEnv?: string | null, fallback?: string | n
 
 export const API_ROOT = normalizeRoot(import.meta.env.VITE_API_BASE_URL as string, appsettings.apiUrl);
 
+// URL base del servidor (sin /api) para archivos estáticos
+export const SERVER_ROOT = API_ROOT.replace(/\/api$/i, '');
+
+// Helper para construir URLs de archivos multimedia
+export function getMediaUrl(relativePath: string): string {
+  if (!relativePath) return '';
+  // Si ya es una URL absoluta, devolverla tal cual
+  if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
+    return relativePath;
+  }
+  // Si es una ruta relativa, agregar la URL base del servidor
+  return `${SERVER_ROOT}${relativePath.startsWith('/') ? '' : '/'}${relativePath}`;
+}
+
 export async function handleJSON<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let msg = `Error ${res.status}`;
