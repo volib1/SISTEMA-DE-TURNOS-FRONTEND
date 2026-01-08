@@ -88,7 +88,6 @@ export default function Launcher() {
 
       <div className="launcher-version">
         <p>© 2025 - Todos los derechos reservados</p>
-        <p className="launcher-credits">by rlvaleriee & Volib</p>
       </div>
     </div>
   );
